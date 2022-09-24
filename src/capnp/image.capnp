@@ -1,14 +1,11 @@
 @0xa5565e1abe1d96a9;
 
-struct Header {
-    seq @0 :UInt64;
-    stamp @1 :UInt64;
-    frameId @2 :Text;
-}
+using Cxx = import "/capnp/c++.capnp";
+$Cxx.namespace("ecal");
 
 struct Image {
 
-    header @0 :Header;
+    header @0 :import "header.capnp".Header;
 
     pixelFormat @1 :Text;
     width @2 :UInt32;
