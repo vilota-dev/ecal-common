@@ -7,10 +7,15 @@ struct Image {
 
     header @0 :import "header.capnp".Header;
 
-    pixelFormat @1 :Text;
+    encoding @1 :Text;
     width @2 :UInt32;
     height @3 :UInt32;
+    step @4 :UInt32;
+    data @5 :Data;
     
-    # exposure, gain
+    # metadata
+    exposureUSec @6 :UInt32;
+    gain @7 :UInt32;
+    sensorName @8 :Text;
 
 }
