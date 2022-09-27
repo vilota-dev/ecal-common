@@ -5,9 +5,15 @@ $Cxx.namespace("ecal");
 
 struct Image {
 
+    enum Encoding {
+        mono8 @0;
+        mono16 @1;
+        yuv420 @2;
+    }
+
     header @0 :import "header.capnp".Header;
 
-    encoding @1 :Text;
+    encoding @1 :Encoding;
     width @2 :UInt32;
     height @3 :UInt32;
     step @4 :UInt32;
