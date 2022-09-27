@@ -29,6 +29,13 @@ def callback(topic_name, msg, ts):
 
             cv2.imshow("mono8", mat)
             cv2.waitKey(3)
+        elif (imageMsg.encoding == "yuv420"):
+            mat = np.frombuffer(imageMsg.data, dtype=np.uint8)
+            mat = mat.reshape((imageMsg.height * 3 // 2, imageMsg.width, 1))
+
+            mat = cv2.cvtColor(mat, cv2.COLOR_YUV2BGR_IYUV)
+            cv2.imshow("yuv420", mat)
+            cv2.waitKey(3)
 
 
 def main():  
