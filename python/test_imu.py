@@ -36,7 +36,7 @@ def main():
     ecal_core.set_process_state(1, 1, "I feel good")
 
     # create subscriber and connect callback
-    sub = StringSubscriber("imu")
+    sub = StringSubscriber("S0/imu")
     sub.set_callback(callback)
     
     # idle main thread

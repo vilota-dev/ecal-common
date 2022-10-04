@@ -12,29 +12,38 @@ from ecal.core.subscriber import StringSubscriber
 
 capnp.add_import_hook(['../src/capnp'])
 
-import image_capnp as eCALImage
+import disparity_capnp as eCALDiaprity
 
 
 def callback(topic_name, msg, ts):
 
     # need to remove the .decode() function within the Python API of ecal.core.subscriber StringSubscriber
-    with eCALImage.Image.from_bytes(msg) as imageMsg:
+    with eCALDiaprity.Disparity.from_bytes(msg) as imageMsg:
         print(f"seq = {imageMsg.header.seq}, with {len(msg)} bytes, encoding = {imageMsg.encoding}")
         print(f"width = {imageMsg.width}, height = {imageMsg.height}")
+        print(f"[fx fy cx cy] - sensor = [{imageMsg.fx} {imageMsg.fy} {imageMsg.cx} {imageMsg.cy}] - {imageMsg.sensorName}")
 
-        if (imageMsg.encoding == "mono8"):
+        if (imageMsg.encoding == "disparity8"):
 
             mat = np.frombuffer(imageMsg.data, dtype=np.uint8)
             mat = mat.reshape((imageMsg.height, imageMsg.width, 1))
 
-            cv2.imshow("mono8", mat)
-            cv2.waitKey(3)
-        elif (imageMsg.encoding == "yuv420"):
-            mat = np.frombuffer(imageMsg.data, dtype=np.uint8)
-            mat = mat.reshape((imageMsg.height * 3 // 2, imageMsg.width, 1))
+            disp = (mat * (255.0 / imageMsg.maxDisparity)).astype(np.uint8)
+            disp = cv2.applyColorMap(disp, cv2.COLORMAP_JET)
 
-            mat = cv2.cvtColor(mat, cv2.COLOR_YUV2BGR_IYUV)
-            cv2.imshow("yuv420", mat)
+            cv2.imshow("diaprity8", disp)
+            cv2.waitKey(3)
+        elif (imageMsg.encoding == "disparity16"):
+            mat_uint16 = np.frombuffer(imageMsg.data, dtype=np.uint16)
+            mat_uint16 = mat_uint16.reshape((imageMsg.height, imageMsg.width, 1))
+
+            mat_float32 = mat_uint16.astype(np.float32) / 8.0
+
+            disp = (mat_float32 * (255.0 / imageMsg.maxDisparity)).astype(np.uint8)
+            disp = cv2.applyColorMap(disp, cv2.COLORMAP_JET)
+
+            # mat = cv2.cvtColor(mat, cv2.COLOR_YUV2BGR_IYUV)
+            cv2.imshow("disparity", disp)
             cv2.waitKey(3)
 
 
@@ -47,14 +56,13 @@ def main():
     print("eCAL {} ({})\n".format(ecal_core.getversion(), ecal_core.getdate()))
     
     # initialize eCAL API
-    ecal_core.initialize(sys.argv, "test_image_sub")
+    ecal_core.initialize(sys.argv, "test_disparity_sub")
     
     # set process state
     ecal_core.set_process_state(1, 1, "I feel good")
 
     # create subscriber and connect callback
-    sub = StringSubscriber("S0/cama")
-    # sub = StringSubscriber("S0/stereo1_l")
+    sub = StringSubscriber("S0/disparity/stereo1")
     sub.set_callback(callback)
     
     # idle main thread
