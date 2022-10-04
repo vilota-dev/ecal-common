@@ -23,11 +23,12 @@ struct Disparity {
     fy @7 :Float32;
     cx @8 :Float32;
     cy @9 :Float32;
+    baseline @10 :Float32;
 
-    sensorName @10 :Text; # typically are "_rect" version to indicated rectified stream
+    sensorName @11 :Text; # typically are "_rect" version to indicated rectified stream
 
-    pinholeRotation @11 :import "so3.capnp".So3;
+    pinholeRotation @12 :import "so3.capnp".So3;
 
-    maxDisparity @12 :UInt32;
+    maxDisparity @13 :UInt32;
 
 }

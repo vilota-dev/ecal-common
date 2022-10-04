@@ -21,7 +21,7 @@ def callback(topic_name, msg, ts):
     with eCALDiaprity.Disparity.from_bytes(msg) as imageMsg:
         print(f"seq = {imageMsg.header.seq}, with {len(msg)} bytes, encoding = {imageMsg.encoding}")
         print(f"width = {imageMsg.width}, height = {imageMsg.height}")
-        print(f"[fx fy cx cy] - sensor = [{imageMsg.fx} {imageMsg.fy} {imageMsg.cx} {imageMsg.cy}] - {imageMsg.sensorName}")
+        print(f"[fx fy cx cy baseline] - sensor = [{imageMsg.fx} {imageMsg.fy} {imageMsg.cx} {imageMsg.cy} {imageMsg.baseline}] - {imageMsg.sensorName}")
 
         if (imageMsg.encoding == "disparity8"):
 
@@ -45,6 +45,21 @@ def callback(topic_name, msg, ts):
             # mat = cv2.cvtColor(mat, cv2.COLOR_YUV2BGR_IYUV)
             cv2.imshow("disparity", disp)
             cv2.waitKey(3)
+        elif (imageMsg.encoding == "depth16"):
+            mat_uint16 = np.frombuffer(imageMsg.data, dtype=np.uint16)
+            mat_uint16 = mat_uint16.reshape((imageMsg.height, imageMsg.width, 1))
+
+            mat_float32 = mat_uint16.astype(np.float32) / 1000 # convert millimeter to meter
+
+            max_depth = 5 # in meters
+
+            depth = (mat_float32 * (255.0 / max_depth)).astype(np.uint8)
+            # depth = 255 - (mat_float32 * (255.0 / max_depth)).astype(np.uint8)
+
+            # depth = np.where(depth == 255, 0 , depth)
+            depth = cv2.applyColorMap(depth, cv2.COLORMAP_JET)
+            cv2.imshow("depth", depth)
+            cv2.waitKey(3)
 
 
 def main():  
@@ -63,6 +78,7 @@ def main():
 
     # create subscriber and connect callback
     sub = StringSubscriber("S0/disparity/stereo1")
+    # sub = StringSubscriber("S0/depth/stereo1")
     sub.set_callback(callback)
     
     # idle main thread
