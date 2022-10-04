@@ -14,6 +14,8 @@ capnp.add_import_hook(['../src/capnp'])
 
 import disparity_capnp as eCALDiaprity
 
+imshow_map = {}
+
 
 def callback(topic_name, msg, ts):
 
@@ -31,8 +33,9 @@ def callback(topic_name, msg, ts):
             disp = (mat * (255.0 / imageMsg.maxDisparity)).astype(np.uint8)
             disp = cv2.applyColorMap(disp, cv2.COLORMAP_JET)
 
-            cv2.imshow("diaprity8", disp)
-            cv2.waitKey(3)
+            imshow_map["diaprity8"] = disp
+            # cv2.imshow("diaprity8", disp)
+            # cv2.waitKey(3)
         elif (imageMsg.encoding == "disparity16"):
             mat_uint16 = np.frombuffer(imageMsg.data, dtype=np.uint16)
             mat_uint16 = mat_uint16.reshape((imageMsg.height, imageMsg.width, 1))
@@ -43,8 +46,9 @@ def callback(topic_name, msg, ts):
             disp = cv2.applyColorMap(disp, cv2.COLORMAP_JET)
 
             # mat = cv2.cvtColor(mat, cv2.COLOR_YUV2BGR_IYUV)
-            cv2.imshow("disparity", disp)
-            cv2.waitKey(3)
+            imshow_map["disparity16"] = disp
+            # cv2.imshow("disparity", disp)
+            # cv2.waitKey(3)
         elif (imageMsg.encoding == "depth16"):
             mat_uint16 = np.frombuffer(imageMsg.data, dtype=np.uint16)
             mat_uint16 = mat_uint16.reshape((imageMsg.height, imageMsg.width, 1))
@@ -58,8 +62,9 @@ def callback(topic_name, msg, ts):
 
             # depth = np.where(depth == 255, 0 , depth)
             depth = cv2.applyColorMap(depth, cv2.COLORMAP_JET)
-            cv2.imshow("depth", depth)
-            cv2.waitKey(3)
+            imshow_map["depth16"] = depth
+            # cv2.imshow("depth", depth)
+            # cv2.waitKey(3)
 
 
 def main():  
@@ -83,7 +88,10 @@ def main():
     
     # idle main thread
     while ecal_core.ok():
-        time.sleep(0.1)
+        for im in imshow_map:
+            cv2.imshow(im, imshow_map[im])
+        cv2.waitKey(3)
+        # time.sleep(0.1)
         
     
     # finalize eCAL API

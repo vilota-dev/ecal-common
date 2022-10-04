@@ -14,6 +14,7 @@ capnp.add_import_hook(['../src/capnp'])
 
 import image_capnp as eCALImage
 
+imshow_map = {}
 
 def callback(topic_name, msg, ts):
 
@@ -27,15 +28,21 @@ def callback(topic_name, msg, ts):
             mat = np.frombuffer(imageMsg.data, dtype=np.uint8)
             mat = mat.reshape((imageMsg.height, imageMsg.width, 1))
 
-            cv2.imshow("mono8", mat)
-            cv2.waitKey(3)
+            imshow_map["mono8"] = mat
+
+            # cv2.imshow("mono8", mat)
+            # cv2.waitKey(3)
         elif (imageMsg.encoding == "yuv420"):
             mat = np.frombuffer(imageMsg.data, dtype=np.uint8)
             mat = mat.reshape((imageMsg.height * 3 // 2, imageMsg.width, 1))
 
             mat = cv2.cvtColor(mat, cv2.COLOR_YUV2BGR_IYUV)
-            cv2.imshow("yuv420", mat)
-            cv2.waitKey(3)
+
+            imshow_map["yuv420"] = mat
+            # cv2.imshow("yuv420", mat)
+            # cv2.waitKey(3)
+        else:
+            raise RuntimeError("unknown encoding: " + imageMsg.encoding)
 
 
 def main():  
@@ -59,7 +66,10 @@ def main():
     
     # idle main thread
     while ecal_core.ok():
-        time.sleep(0.1)
+        for im in imshow_map:
+            cv2.imshow(im, imshow_map[im])
+        cv2.waitKey(3)
+        # time.sleep(0.01)
         
     
     # finalize eCAL API
