@@ -9,6 +9,8 @@ struct Image {
         mono8 @0;
         mono16 @1;
         yuv420 @2;
+        bgr8 @3;
+        jpeg @4;
     }
 
     header @0 :import "header.capnp".Header;

@@ -8,7 +8,7 @@ import numpy as np
 import cv2
 
 import ecal.core.core as ecal_core
-from ecal.core.subscriber import StringSubscriber
+from ecal.core.subscriber import ByteSubscriber
 
 capnp.add_import_hook(['../src/capnp'])
 
@@ -22,6 +22,7 @@ def callback(topic_name, msg, ts):
     with eCALImage.Image.from_bytes(msg) as imageMsg:
         print(f"seq = {imageMsg.header.seq}, with {len(msg)} bytes, encoding = {imageMsg.encoding}")
         print(f"width = {imageMsg.width}, height = {imageMsg.height}")
+        print(f"exposure = {imageMsg.exposureUSec}, gain = {imageMsg.gain}")
 
         if (imageMsg.encoding == "mono8"):
 
@@ -41,6 +42,14 @@ def callback(topic_name, msg, ts):
             imshow_map["yuv420"] = mat
             # cv2.imshow("yuv420", mat)
             # cv2.waitKey(3)
+        elif (imageMsg.encoding == "bgr8"):
+            mat = np.frombuffer(imageMsg.data, dtype=np.uint8)
+            mat = mat.reshape((imageMsg.height, imageMsg.width, 3))
+            imshow_map["bgr8"] = mat
+        elif (imageMsg.encoding == "jpeg"):
+            mat_jpeg = np.frombuffer(imageMsg.data, dtype=np.uint8)
+            mat = cv2.imdecode(mat_jpeg, cv2.IMREAD_COLOR)
+            imshow_map["jpeg"] = mat
         else:
             raise RuntimeError("unknown encoding: " + imageMsg.encoding)
 
@@ -60,8 +69,9 @@ def main():
     ecal_core.set_process_state(1, 1, "I feel good")
 
     # create subscriber and connect callback
-    sub = StringSubscriber("S0/cama")
-    # sub = StringSubscriber("S0/stereo1_l")
+    # sub = ByteSubscriber("S0/camd")
+    sub = ByteSubscriber("raw_fisheye_image")
+    # sub = ByteSubscriber("S0/stereo1_l")
     sub.set_callback(callback)
     
     # idle main thread

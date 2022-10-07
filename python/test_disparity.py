@@ -8,7 +8,7 @@ import numpy as np
 import cv2
 
 import ecal.core.core as ecal_core
-from ecal.core.subscriber import StringSubscriber
+from ecal.core.subscriber import ByteSubscriber
 
 capnp.add_import_hook(['../src/capnp'])
 
@@ -19,7 +19,7 @@ imshow_map = {}
 
 def callback(topic_name, msg, ts):
 
-    # need to remove the .decode() function within the Python API of ecal.core.subscriber StringSubscriber
+    # need to remove the .decode() function within the Python API of ecal.core.subscriber ByteSubscriber
     with eCALDiaprity.Disparity.from_bytes(msg) as imageMsg:
         print(f"seq = {imageMsg.header.seq}, with {len(msg)} bytes, encoding = {imageMsg.encoding}")
         print(f"width = {imageMsg.width}, height = {imageMsg.height}")
@@ -82,8 +82,8 @@ def main():
     ecal_core.set_process_state(1, 1, "I feel good")
 
     # create subscriber and connect callback
-    sub = StringSubscriber("S0/disparity/stereo1")
-    # sub = StringSubscriber("S0/depth/stereo1")
+    sub = ByteSubscriber("S0/disparity/stereo1")
+    # sub = ByteSubscriber("S0/depth/stereo1")
     sub.set_callback(callback)
     
     # idle main thread

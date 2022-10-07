@@ -1,0 +1,70 @@
+diff --git a/lang/python/core/ecal/core/publisher.py b/lang/python/core/ecal/core/publisher.py
+index 3c1b8a58..ce5ee6bb 100644
+--- a/lang/python/core/ecal/core/publisher.py
++++ b/lang/python/core/ecal/core/publisher.py
+@@ -106,6 +106,17 @@ class StringPublisher(MessagePublisher):
+   def send(self, msg, time=-1):
+     return self.c_publisher.send(msg.encode(), time)
+ 
++class BytePublisher(MessagePublisher):
++  """Specialized publisher that sends out raw bytes
++  """
++  def __init__(self, name):
++    topic_type = "base:byte"
++    topic_desc = b""
++    super(BytePublisher, self).__init__(name, topic_type, topic_desc)
++
++  def send(self, msg, time=-1):
++    return self.c_publisher.send(msg, time)
++
+ 
+ if __name__ == '__main__':
+   """Test the publisher API
+diff --git a/lang/python/core/ecal/core/subscriber.py b/lang/python/core/ecal/core/subscriber.py
+index 1fa0bb8a..9f9ec543 100644
+--- a/lang/python/core/ecal/core/subscriber.py
++++ b/lang/python/core/ecal/core/subscriber.py
+@@ -174,6 +174,43 @@ class StringSubscriber(MessageSubscriber):
+   def _on_receive(self, topic_name, msg, time):
+     self.callback(topic_name, msg.decode(), time)    
+ 
++class ByteSubscriber(MessageSubscriber):
++  """Specialized publisher subscribes to raw bytes
++  """
++  def __init__(self, name):
++    topic_type = "base:byte"
++    super(ByteSubscriber, self).__init__(name, topic_type)
++    self.callback = None
++
++  def receive(self, timeout=0):
++    """ receive subscriber content with timeout
++
++    :param timeout: receive timeout in ms
++
++    """
++    ret, msg, time = self.c_subscriber.receive(timeout)
++    return ret, msg, time
++
++  def set_callback(self, callback):
++    """ set callback function for incoming messages
++
++    :param callback: python callback function (f(topic_name, msg, time))
++
++    """
++    self.callback = callback
++    self.c_subscriber.set_callback(self._on_receive)
++
++  def rem_callback(self, callback):
++    """ remove callback function for incoming messages
++
++    :param callback: python callback function (f(topic_name, msg, time))
++
++    """
++    self.c_subscriber.rem_callback(self._on_receive)
++    self.callback = None
++
++  def _on_receive(self, topic_name, msg, time):
++    self.callback(topic_name, msg, time)    
+ 
+ if __name__ == '__main__':
+   """Test the subscriber API
