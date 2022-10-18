@@ -10,7 +10,7 @@ import cv2
 import numpy as np
 
 import ecal.core.core as ecal_core
-from ecal.core.publisher import BytePublisher
+from byte_subscriber import ByteSubscriber
 
 capnp.add_import_hook(['../src/capnp'])
 

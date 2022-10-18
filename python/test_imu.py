@@ -7,7 +7,7 @@ import capnp
 import numpy as np
 
 import ecal.core.core as ecal_core
-from ecal.core.subscriber import ByteSubscriber
+from byte_subscriber import ByteSubscriber
 
 capnp.add_import_hook(['../src/capnp'])
 
