@@ -33,7 +33,7 @@ def callback(topic_name, msg, ts):
             disp = (mat * (255.0 / imageMsg.maxDisparity)).astype(np.uint8)
             disp = cv2.applyColorMap(disp, cv2.COLORMAP_JET)
 
-            imshow_map["diaprity8"] = disp
+            imshow_map[topic_name + " diaprity8"] = disp
             # cv2.imshow("diaprity8", disp)
             # cv2.waitKey(3)
         elif (imageMsg.encoding == "disparity16"):
@@ -46,7 +46,7 @@ def callback(topic_name, msg, ts):
             disp = cv2.applyColorMap(disp, cv2.COLORMAP_JET)
 
             # mat = cv2.cvtColor(mat, cv2.COLOR_YUV2BGR_IYUV)
-            imshow_map["disparity16"] = disp
+            imshow_map[topic_name + " disparity16"] = disp
             # cv2.imshow("disparity", disp)
             # cv2.waitKey(3)
         elif (imageMsg.encoding == "depth16"):
@@ -62,7 +62,7 @@ def callback(topic_name, msg, ts):
 
             # depth = np.where(depth == 255, 0 , depth)
             depth = cv2.applyColorMap(depth, cv2.COLORMAP_JET)
-            imshow_map["depth16"] = depth
+            imshow_map[topic_name + " depth16"] = depth
             # cv2.imshow("depth", depth)
             # cv2.waitKey(3)
 

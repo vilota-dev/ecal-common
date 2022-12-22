@@ -29,7 +29,7 @@ def callback(topic_name, msg, ts):
             mat = np.frombuffer(imageMsg.data, dtype=np.uint8)
             mat = mat.reshape((imageMsg.height, imageMsg.width, 1))
 
-            imshow_map["mono8"] = mat
+            imshow_map[topic_name + " mono8"] = mat
 
             # cv2.imshow("mono8", mat)
             # cv2.waitKey(3)
@@ -39,17 +39,17 @@ def callback(topic_name, msg, ts):
 
             mat = cv2.cvtColor(mat, cv2.COLOR_YUV2BGR_IYUV)
 
-            imshow_map["yuv420"] = mat
+            imshow_map[topic_name + " yuv420"] = mat
             # cv2.imshow("yuv420", mat)
             # cv2.waitKey(3)
         elif (imageMsg.encoding == "bgr8"):
             mat = np.frombuffer(imageMsg.data, dtype=np.uint8)
             mat = mat.reshape((imageMsg.height, imageMsg.width, 3))
-            imshow_map["bgr8"] = mat
+            imshow_map[topic_name + " bgr8"] = mat
         elif (imageMsg.encoding == "jpeg"):
             mat_jpeg = np.frombuffer(imageMsg.data, dtype=np.uint8)
             mat = cv2.imdecode(mat_jpeg, cv2.IMREAD_COLOR)
-            imshow_map["jpeg"] = mat
+            imshow_map[topic_name + " jpeg"] = mat
         else:
             raise RuntimeError("unknown encoding: " + imageMsg.encoding)
 
