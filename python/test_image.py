@@ -69,9 +69,17 @@ def main():
     ecal_core.set_process_state(1, 1, "I feel good")
 
     # create subscriber and connect callback
-    # sub = ByteSubscriber("S0/camd")
-    sub = ByteSubscriber("raw_fisheye_image")
-    # sub = ByteSubscriber("S0/stereo1_l")
+
+    n = len(sys.argv)
+    if n == 1:
+        topic = "S0/camd"
+    elif n == 2:
+        topic = sys.argv[1]
+    else:
+        raise RuntimeError("Need to pass in exactly one parameter for topic")
+
+    print(f"Streaming topic {topic}")
+    sub = ByteSubscriber(topic)
     sub.set_callback(callback)
     
     # idle main thread

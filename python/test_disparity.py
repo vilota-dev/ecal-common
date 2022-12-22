@@ -81,8 +81,18 @@ def main():
     # set process state
     ecal_core.set_process_state(1, 1, "I feel good")
 
+    n = len(sys.argv)
+    if n == 1:
+        topic = "S0/disparity/stereo1"
+    elif n == 2:
+        topic = sys.argv[1]
+    else:
+        raise RuntimeError("Need to pass in exactly one parameter for topic")
+
+    print(f"Streaming topic {topic}")
+
     # create subscriber and connect callback
-    sub = ByteSubscriber("S0/disparity/stereo1")
+    sub = ByteSubscriber(topic)
     # sub = ByteSubscriber("S0/depth/stereo1")
     sub.set_callback(callback)
     

@@ -183,7 +183,7 @@ def main(mode):
     # set process state
     ecal_core.set_process_state(1, 1, "I feel good")
 
-    image_topics = ["S0/cama", "S0/camd", "S0/camb"]
+    image_topics = ["S0/camc", "S0/camd", "S0/camb"]
     imu_topic = "S0/imu"
 
     if mode == DatasetMode.SNAPSHOTS:
@@ -241,3 +241,8 @@ if __name__ == "__main__":
 
     # main(DatasetMode.SNAPSHOTS) # for camera calibration
     main(DatasetMode.CONTINUOUS) # for camera-imu calibration
+
+    # NOTE: for continuous mode, we have to make sure eCAL is configured optimally
+    # https://github.com/eclipse-ecal/ecal/issues/869#issuecomment-1304970327
+    # memfile_ack_timeout       = 10                                     
+    # memfile_buffer_count      = 2
