@@ -23,7 +23,7 @@ def callback(topic_name, msg, ts):
     with eCALDiaprity.Disparity.from_bytes(msg) as imageMsg:
         print(f"seq = {imageMsg.header.seq}, with {len(msg)} bytes, encoding = {imageMsg.encoding}")
         print(f"width = {imageMsg.width}, height = {imageMsg.height}")
-        print(f"[fx fy cx cy baseline] - sensor = [{imageMsg.fx} {imageMsg.fy} {imageMsg.cx} {imageMsg.cy} {imageMsg.baseline}] - {imageMsg.sensorName}")
+        print(f"[fx fy cx cy baseline] - sensor = [{imageMsg.fx} {imageMsg.fy} {imageMsg.cx} {imageMsg.cy} {imageMsg.baseline}] - {imageMsg.streamName}")
 
         if (imageMsg.encoding == "disparity8"):
 

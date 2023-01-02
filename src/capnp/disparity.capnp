@@ -25,7 +25,7 @@ struct Disparity {
     cy @9 :Float32;
     baseline @10 :Float32;
 
-    sensorName @11 :Text; # typically are "_rect" version to indicated rectified stream
+    streamName @11 :Text; # typically are "_rect" version to indicated rectified stream
 
     pinholeRotation @12 :import "so3.capnp".So3;
 

@@ -24,6 +24,8 @@ struct Image {
     # metadata
     exposureUSec @6 :UInt32;
     gain @7 :UInt32;
-    sensorName @8 :Text;
+
+    sensorIdx @8 :Int8; # physical camera index
+    streamName @9 :Text;
 
 }

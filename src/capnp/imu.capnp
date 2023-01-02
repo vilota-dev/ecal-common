@@ -9,5 +9,5 @@ struct Imu {
     linearAcceleration @1 :import "vector3d.capnp".Vector3d;
     angularVelocity @2 :import "vector3d.capnp".Vector3d;
 
-    sensorName @3 :Text;
+    streamName @3 :Text;
 }
