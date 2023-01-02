@@ -23,6 +23,8 @@ def callback(topic_name, msg, ts):
         print(f"seq = {imageMsg.header.seq}, with {len(msg)} bytes, encoding = {imageMsg.encoding}")
         print(f"width = {imageMsg.width}, height = {imageMsg.height}")
         print(f"exposure = {imageMsg.exposureUSec}, gain = {imageMsg.gain}")
+        print(f"intrinsic = {imageMsg.intrinsic}")
+        print(f"extrinsic = {imageMsg.extrinsic}")
 
         if (imageMsg.encoding == "mono8"):
 

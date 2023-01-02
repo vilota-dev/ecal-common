@@ -18,7 +18,7 @@ struct Image {
     encoding @1 :Encoding;
     width @2 :UInt32;
     height @3 :UInt32;
-    step @4 :UInt32;
+    step @4 :UInt32; # bytes in a row
     data @5 :Data;
     
     # metadata
@@ -27,5 +27,8 @@ struct Image {
 
     sensorIdx @8 :Int8; # physical camera index
     streamName @9 :Text;
+
+    intrinsic @10 :import "cameraintrinsic.capnp".CameraIntrinsic;
+    extrinsic @11 :import "sensorextrinsic.capnp".SensorExtrinsic;
 
 }

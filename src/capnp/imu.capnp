@@ -10,4 +10,7 @@ struct Imu {
     angularVelocity @2 :import "vector3d.capnp".Vector3d;
 
     streamName @3 :Text;
+
+    intrinsic @4 :Void;
+    extrinsic @5 :import "sensorextrinsic.capnp".SensorExtrinsic;
 }
