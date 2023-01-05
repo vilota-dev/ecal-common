@@ -23,6 +23,7 @@ def callback(topic_name, msg, time):
         gyro = np.array([imuMsg.angularVelocity.x, imuMsg.angularVelocity.y, imuMsg.angularVelocity.z])
         print(f"accel = {accel}")
         print(f"gyro = {gyro}")
+        print(f"extrinsic = {imuMsg.extrinsic}")
 
 def main():  
 
