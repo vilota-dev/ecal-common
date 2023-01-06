@@ -30,8 +30,20 @@ include_directories(
   ../include
   ${OpenCV_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIR}
-  ${CMAKE_CURRENT_BINARY_DIR}/../../src)
+  ${CMAKE_CURRENT_BINARY_DIR}/src)
 
+
+  set(CAPNPC_SRC_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/../..")
+  capnp_generate_cpp(CAPNP_SRCS CAPNP_HDRS 
+      ../../src/capnp/header.capnp
+      ../../src/capnp/vector3d.capnp
+      ../../src/capnp/imu.capnp
+      ../../src/capnp/image.capnp
+      ../../src/capnp/so3.capnp
+      ../../src/capnp/se3.capnp
+      ../../src/capnp/cameraintrinsic.capnp
+      ../../src/capnp/sensorextrinsic.capnp
+      )
 
 add_library(ecal_camera 
   CameraInternal.cpp
@@ -40,7 +52,7 @@ add_library(ecal_camera
   ${CAPNP_HDRS})
 target_link_libraries(ecal_camera 
   PUBLIC ${OpenCV_LIBS}
-  PRIVATE Threads::Threads CapnProto::capnp)
+  PRIVATE Threads::Threads CapnProto::capnp eCAL::core)
 
 # alias will make public dependencies go through
 add_library(ecal_camera::ecal_camera ALIAS ecal_camera)

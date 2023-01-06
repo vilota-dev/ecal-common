@@ -3,14 +3,19 @@
 #include <functional>
 #include <memory>
 
+#include <vector>
+
 #include <Eigen/Dense>
 #include <opencv2/core.hpp>
 
 namespace vk 
 {
 
-class CameraParams {
-
+struct CameraParams {
+    std::vector<std::string> camera_topics;
+    std::string imu_topic;
+    bool camera_exact_sync = true;
+    std::string ecal_process_name = "camimu interface cpp";
 };
 
 class CameraFrameData {
@@ -49,6 +54,10 @@ class CameraInterface {
 
         virtual void registerSyncedCameraCallback(callbackCamera callback) = 0;
         virtual void registerImuCallback(callbackImu callback) = 0;
+
+    protected:
+
+        CameraParams m_params;
 
 };
 
