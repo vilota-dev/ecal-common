@@ -23,14 +23,20 @@ def frameNorm(frame, bbox):
     normVals[::2] = frame.shape[1]
     return (np.clip(np.array(bbox), 0, 1) * normVals).astype(int)
 
-def displayFrame(frame, detections, labels):
+def displayFrame(frame, detections, labels, half_size = False):
     color = (255, 0, 0)
+
+    if half_size:
+        frame = cv2.resize(frame, (frame.shape[1] // 2, frame.shape[0] // 2))
+
     for detection in detections:
         bbox = frameNorm(frame, (detection.xmin, detection.ymin, detection.xmax, detection.ymax))
         print(f"{labels[detection.labelIdx]} : {bbox}")
-        cv2.putText(frame, labels[detection.labelIdx], (bbox[0] + 10, bbox[1] + 20), cv2.FONT_HERSHEY_TRIPLEX, 0.5, 255)
+        cv2.putText(frame, labels[detection.labelIdx], (bbox[0] + 10, bbox[1] + 20), cv2.FONT_HERSHEY_TRIPLEX, 1.0, 255)
         cv2.putText(frame, f"{int(detection.confidence * 100)}%", (bbox[0] + 10, bbox[1] + 40), cv2.FONT_HERSHEY_TRIPLEX, 0.5, 255)
-        cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color, 2)
+        cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color, 4)
+
+    return frame
 
 def callback(topic_name, msg, ts):
 
@@ -61,7 +67,7 @@ def callback(topic_name, msg, ts):
             raise RuntimeError("unknown encoding: " + d.image.encoding)
 
 
-        displayFrame(mat, d.detections, d.labels)
+        mat = displayFrame(mat, d.detections, d.labels)
         # bbox = np.zeros(4)
         # bbox[:] = [msg.xmin, msg.ymin, msg.xmax, msg.ymax]
 
