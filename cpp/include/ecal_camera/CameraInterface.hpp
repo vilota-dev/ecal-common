@@ -12,13 +12,15 @@ namespace vk
 {
 
 struct CameraParams {
-    std::vector<std::string> camera_topics;
-    std::string imu_topic;
+    std::vector<std::string> camera_topics = {"S0/camb", "S0/camc"};
+    std::string imu_topic = {"S0/imu"};
     bool camera_exact_sync = true;
     std::string ecal_process_name = "camimu interface cpp";
 };
 
-class CameraFrameData {
+struct CameraFrameData {
+
+    typedef std::shared_ptr<CameraFrameData> Ptr;
 
     std::uint64_t ts;
     std::uint64_t seq;
@@ -31,7 +33,10 @@ class CameraFrameData {
 
 };
 
-class ImuFrameData {
+struct ImuFrameData {
+
+    typedef std::shared_ptr<ImuFrameData> Ptr;
+
     std::uint64_t ts;
     std::uint64_t seq;
     std::uint64_t lastSeq;
@@ -47,8 +52,8 @@ class CameraInterface {
     public:
         typedef std::shared_ptr<CameraInterface> Ptr;
 
-        typedef std::function<void(const std::vector<CameraFrameData>&)> callbackCamera;
-        typedef std::function<void(const ImuFrameData)> callbackImu;
+        typedef std::function<void(const std::vector<CameraFrameData::Ptr>&)> callbackCamera;
+        typedef std::function<void(const ImuFrameData::Ptr)> callbackImu;
 
         virtual void init(const CameraParams &params) = 0;
 
