@@ -183,7 +183,7 @@ def main(mode):
     # set process state
     ecal_core.set_process_state(1, 1, "I feel good")
 
-    image_topics = ["S0/camc", "S0/camd", "S0/camb"]
+    image_topics = ["S0/camc", "S0/cama"]
     imu_topic = "S0/imu"
 
     if mode == DatasetMode.SNAPSHOTS:
@@ -213,6 +213,9 @@ def main(mode):
         image_list = []
         image_name = ""
 
+        group = 0
+        idx = 0
+
         for imageName in image_dict:
 
             image_name += imageName + " "
@@ -224,8 +227,19 @@ def main(mode):
 
             image_list.append(mat_resized)
 
+            idx += 1
+
+            if idx == 3: # set maximum 3 images in a preview window
+                image_name = f"[group {group}] " + image_name
+
+                cv2.imshow(image_name, cv2.hconcat(image_list))
+
+                group += 1
+                image_name = ""
+                image_list = []
+
         if (len(image_list)):
-            cv2.imshow(image_name, cv2.hconcat(image_list))
+            cv2.imshow(f"[group {group}] " + image_name, cv2.hconcat(image_list))
 
         key = cv2.waitKey(10)
         if key == ord('q'):
