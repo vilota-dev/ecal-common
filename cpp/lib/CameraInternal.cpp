@@ -243,6 +243,67 @@ void CameraInternal::imuCallbackInternal(const char* ecal_topic_name, ecal::Imu:
 
     // std::cout << topic_name << " data received at ts = " << ts << std::endl;
 
+    const auto& header = ecal_msg.getHeader();
+
+    if (!m_imuMessage) {
+        // first time receiving message
+        m_imuMessage = std::make_shared<ImuFrameData>();
+        std::cout << "first time imu stream received" << std::endl;
+    }else{
+        m_imuMessage->lastSeq = m_imuMessage->seq;
+    }
+
+    m_imuMessage->ts = header.getStamp();
+    m_imuMessage->seq = header.getSeq();
+
+    m_imuMessage->gyro = {
+        ecal_msg.getAngularVelocity().getX(),
+        ecal_msg.getAngularVelocity().getY(),
+        ecal_msg.getAngularVelocity().getZ()
+    };
+
+    m_imuMessage->accel = {
+        ecal_msg.getLinearAcceleration().getX(),
+        ecal_msg.getLinearAcceleration().getY(),
+        ecal_msg.getLinearAcceleration().getZ()
+    };
+
+    // calibration logic
+    bool updateCalibration = false;
+    if (m_imuMessage->calib.lastModifiedExtrinsic != ecal_msg.getExtrinsic().getLastModified()) {
+        updateCalibration = true;
+    }
+
+    if (updateCalibration) {
+        m_imuMessage->calib.lastModifiedExtrinsic = ecal_msg.getExtrinsic().getLastModified();
+        std::cout << "received updated extrinsic for imu, ts = " << m_imuMessage->calib.lastModifiedExtrinsic << std::endl;
+
+        const auto& extrinsicMsg = ecal_msg.getExtrinsic();
+
+        // body frame
+        {
+            Eigen::Vector3d position = {
+            extrinsicMsg.getBodyFrame().getPosition().getX(),
+            extrinsicMsg.getBodyFrame().getPosition().getY(),
+            extrinsicMsg.getBodyFrame().getPosition().getZ()
+            };
+
+            Eigen::Quaterniond orientation = {
+                extrinsicMsg.getBodyFrame().getOrientation().getW(),
+                extrinsicMsg.getBodyFrame().getOrientation().getX(),
+                extrinsicMsg.getBodyFrame().getOrientation().getY(),
+                extrinsicMsg.getBodyFrame().getOrientation().getZ()
+            };
+
+            m_imuMessage->calib.body_T_imu.linear() = orientation.toRotationMatrix();
+            m_imuMessage->calib.body_T_imu.translation() = position;
+
+            std::cout << "body_T_imu: " << std::endl << m_imuMessage->calib.body_T_imu.affine() << std::endl;
+
+        }
+    }
+    
+
 }
 
 CameraInternal::~CameraInternal()

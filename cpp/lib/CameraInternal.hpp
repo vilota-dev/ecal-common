@@ -122,6 +122,7 @@ class CameraInternal : public CameraInterface {
     std::vector<callbackImu> m_registeredImuCallbacks;
 
     MessageSynchroniserExact<CameraFrameData::Ptr> m_messageSyncHandler;
+    ImuFrameData::Ptr m_imuMessage;
 
 };
 
