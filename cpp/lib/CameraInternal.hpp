@@ -108,6 +108,15 @@ class CameraInternal : public CameraInterface {
 
     std::map<std::string, eCAL::capnproto::CSubscriber<ecal::Image>> m_imageSubMap;
     std::map<std::string, eCAL::capnproto::CSubscriber<ecal::Imu>> m_imuSubMap;
+    std::vector<std::string> m_idxMap;
+
+    // regarding lastSeq
+    std::map<size_t, std::uint64_t> m_lastSeqCameraFrameMap;
+    std::uint64_t m_lastSeqImuFrameMap = 0;
+
+    // regarding calibration
+    std::map<size_t, CameraCalibration> m_cameraCalibrationMap;
+    ImuCalibration m_imuCalibration;
 
     std::vector<callbackCamera> m_registeredImageCallbacks;
     std::vector<callbackImu> m_registeredImuCallbacks;

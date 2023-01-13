@@ -2,6 +2,9 @@
 
 #include <iostream>
 
+#include <opencv2/imgproc/imgproc.hpp>
+// #include <opencv2/highgui/highgui.hpp> // for debugging
+
 namespace vk 
 {
 
@@ -21,6 +24,7 @@ void CameraInternal::init(const CameraParams &params) {
         auto callback = std::bind(&CameraInternal::cameraCallbackInternal, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, idx);
         m_imageSubMap.emplace(topic, topic);
         m_imageSubMap.at(topic).AddReceiveCallback(callback);
+        m_idxMap.push_back(topic);
 
         idx++;
     }
@@ -55,12 +59,165 @@ void CameraInternal::cameraCallbackInternal(const char* ecal_topic_name, ecal::I
 
         CameraFrameData::Ptr msg = std::make_shared<CameraFrameData>();
 
-        auto header = ecal_msg.getHeader();
+        const auto& header = ecal_msg.getHeader();
+        const auto& streamName = ecal_msg.getStreamName().cStr();
 
         msg->ts = header.getStamp();
         msg->seq = header.getSeq();
 
-        // std::cout << ecal_topic_name << " data received at ts = " << msg->ts << std::endl;
+        // logic on lastSeq
+        if (m_lastSeqCameraFrameMap.count(idx)) {
+            
+            msg->lastSeq = m_lastSeqCameraFrameMap.at(idx);
+            m_lastSeqCameraFrameMap.at(idx) = msg->seq;
+            
+        }else {
+            // first time obtaining the message
+            msg->lastSeq = 0;
+            m_lastSeqCameraFrameMap[idx] = msg->seq;
+            std::cout << "first camera stream received for " << streamName << std::endl;
+        }
+
+        // logic on calibration
+        const auto& intrinsicMsg = ecal_msg.getIntrinsic();
+        const auto& extrinsicMsg = ecal_msg.getExtrinsic();
+
+        bool updateIntrinsicCalibration = false;
+        bool updateExtrinsicCalibration = false;
+
+        if (m_cameraCalibrationMap.count(idx)) {
+
+            auto& calibStored = m_cameraCalibrationMap.at(idx);
+
+            if (intrinsicMsg.getLastModified() != calibStored.lastModifiedIntrinsic)
+                updateIntrinsicCalibration = true;
+
+
+            if (extrinsicMsg.getLastModified() != calibStored.lastModifiedExtrinsic)
+                updateExtrinsicCalibration = true;
+
+        }else {
+            // first time setup for calibration
+
+            auto& calibStored = m_cameraCalibrationMap[idx] = {};
+            
+            updateIntrinsicCalibration = true;
+            updateExtrinsicCalibration = true;
+        }
+
+        if (updateExtrinsicCalibration || updateExtrinsicCalibration) {
+            auto& calibStored = m_cameraCalibrationMap.at(idx);
+            calibStored.rectified = ecal_msg.getIntrinsic().getRectified();
+        }
+
+        if (updateIntrinsicCalibration) {
+            auto& calibStored = m_cameraCalibrationMap.at(idx);
+
+            calibStored.lastModifiedIntrinsic = intrinsicMsg.getLastModified();
+            std::cout << "received updated intrinsic for " << streamName << ", ts = " << calibStored.lastModifiedIntrinsic << std::endl;
+
+            if (intrinsicMsg.hasPinhole()) {
+                const auto& pinhole = intrinsicMsg.getPinhole();
+
+                Eigen::Vector4d intrinsic = {pinhole.getFx(), pinhole.getFy(), pinhole.getCx(), pinhole.getCy()};
+                calibStored.intrinsicMap["pinhole"] = intrinsic;
+            }
+
+            if (intrinsicMsg.hasKb4()) {
+                const auto& kb4 = intrinsicMsg.getKb4();
+                const auto& pinhole = kb4.getPinhole();
+
+                Eigen::Matrix<double, 8, 1> intrinsic;
+                intrinsic << pinhole.getFx(), pinhole.getFy(), pinhole.getCx(), pinhole.getCy(),
+                    kb4.getK1(), kb4.getK2(), kb4.getK3(), kb4.getK4();
+                calibStored.intrinsicMap["kb4"] = intrinsic;
+            }
+
+            if (intrinsicMsg.hasDs()) {
+                const auto& ds = intrinsicMsg.getDs();
+                const auto& pinhole = ds.getPinhole();
+
+                Eigen::Matrix<double, 6, 1> intrinsic;
+                intrinsic << pinhole.getFx(), pinhole.getFy(), pinhole.getCx(), pinhole.getCy(),
+                    ds.getXi(), ds.getAlpha();
+                calibStored.intrinsicMap["ds"] = intrinsic;
+            }
+
+            for (auto& item : calibStored.intrinsicMap) {
+                std::cout << item.first << ": " << item.second.transpose() << std::endl;
+            }
+
+        }
+
+        if (updateExtrinsicCalibration) {
+            auto& calibStored = m_cameraCalibrationMap.at(idx);
+
+            calibStored.lastModifiedExtrinsic = extrinsicMsg.getLastModified();
+            std::cout << "received updated extrinsic for " << streamName << ", ts = " << calibStored.lastModifiedExtrinsic << std::endl;
+
+            // body frame
+            {
+                Eigen::Vector3d position = {
+                extrinsicMsg.getBodyFrame().getPosition().getX(),
+                extrinsicMsg.getBodyFrame().getPosition().getY(),
+                extrinsicMsg.getBodyFrame().getPosition().getZ()
+                };
+
+                Eigen::Quaterniond orientation = {
+                    extrinsicMsg.getBodyFrame().getOrientation().getW(),
+                    extrinsicMsg.getBodyFrame().getOrientation().getX(),
+                    extrinsicMsg.getBodyFrame().getOrientation().getY(),
+                    extrinsicMsg.getBodyFrame().getOrientation().getZ()
+                };
+
+                calibStored.body_T_cam.linear() = orientation.toRotationMatrix();
+                calibStored.body_T_cam.translation() = position;
+
+                std::cout << "body_T_cam: " << std::endl << calibStored.body_T_cam.affine() << std::endl;
+
+            }
+
+            // imu frame
+            {
+                Eigen::Vector3d position = {
+                extrinsicMsg.getImuFrame().getPosition().getX(),
+                extrinsicMsg.getImuFrame().getPosition().getY(),
+                extrinsicMsg.getImuFrame().getPosition().getZ()
+                };
+
+                Eigen::Quaterniond orientation = {
+                    extrinsicMsg.getImuFrame().getOrientation().getW(),
+                    extrinsicMsg.getImuFrame().getOrientation().getX(),
+                    extrinsicMsg.getImuFrame().getOrientation().getY(),
+                    extrinsicMsg.getImuFrame().getOrientation().getZ()
+                };
+
+                calibStored.imu_T_cam.linear() = orientation.toRotationMatrix();
+                calibStored.imu_T_cam.translation() = position;
+
+                std::cout << "imu_T_cam: " << std::endl << calibStored.imu_T_cam.affine() << std::endl;
+
+            }
+            
+        }
+
+        msg->calib = m_cameraCalibrationMap.at(idx);
+
+        if (ecal_msg.getEncoding() == ecal::Image::Encoding::MONO8) {
+            msg->encoding = "mono8";
+
+            // ecal_msg.getData().asBytes().begin()
+            const cv::Mat rawImg(ecal_msg.getHeight(), ecal_msg.getWidth(), CV_8UC1, 
+                const_cast<unsigned char*>(ecal_msg.getData().asBytes().begin()));
+            msg->image = rawImg.clone();
+        }else if (ecal_msg.getEncoding() == ecal::Image::Encoding::YUV420) {
+            msg->encoding = "bgr8";
+            const cv::Mat rawImg(ecal_msg.getHeight() * 3 / 2, ecal_msg.getWidth(), CV_8UC1, 
+                const_cast<unsigned char*>(ecal_msg.getData().asBytes().begin()));
+            cv::cvtColor(rawImg, msg->image, cv::COLOR_YUV2BGR_IYUV);
+        }else{
+            throw std::runtime_error("not implemented encoding");
+        }
 
         m_messageSyncHandler.addMessage(idx, header.getStamp(), header.getSeq(), msg);
 
@@ -68,6 +225,14 @@ void CameraInternal::cameraCallbackInternal(const char* ecal_topic_name, ecal::I
 
         if (synced.size()) {
             std::cout << "synced image message at " << synced[0]->ts << std::endl;
+
+            // DEBUG 
+            // for (size_t i = 0; i < synced.size(); i++) {
+            //     cv::imshow(m_idxMap[i], synced[i]->image);
+            // }
+
+            // cv::waitKey(3);
+            
         }
 
     }else

@@ -4,18 +4,30 @@
 #include <memory>
 
 #include <vector>
+#include <map>
 
 #include <Eigen/Dense>
 #include <opencv2/core.hpp>
+// #include <opencv2/opencv.hpp>
 
 namespace vk 
 {
 
 struct CameraParams {
-    std::vector<std::string> camera_topics = {"S0/camb", "S0/camc"};
+    std::vector<std::string> camera_topics = {"S0/camb", "S0/camc", "S0/camd"};
     std::string imu_topic = {"S0/imu"};
     bool camera_exact_sync = true;
     std::string ecal_process_name = "camimu interface cpp";
+};
+
+struct CameraCalibration {
+    std::map<std::string, Eigen::VectorXd> intrinsicMap; // there might be multiple calibration for the same camera
+    std::uint64_t lastModifiedIntrinsic;
+    bool rectified;
+
+    Eigen::Isometry3d imu_T_cam;
+    Eigen::Isometry3d body_T_cam;
+    std::uint64_t lastModifiedExtrinsic = 0;
 };
 
 struct CameraFrameData {
@@ -26,11 +38,16 @@ struct CameraFrameData {
     std::uint64_t seq;
     std::uint64_t lastSeq;
 
+    std::string encoding;
     cv::Mat image;
 
-    Eigen::Isometry3d imu_T_cam;
-    Eigen::Isometry3d body_T_cam;
+    CameraCalibration calib;
 
+};
+
+struct ImuCalibration {
+    Eigen::Isometry3d body_T_imu;
+    std::uint64_t lastModifiedExtrinsic = 0;
 };
 
 struct ImuFrameData {
@@ -44,7 +61,7 @@ struct ImuFrameData {
     Eigen::Vector3d accel;
     Eigen::Vector3d gyro;
 
-    Eigen::Isometry3d body_T_imu;
+    ImuCalibration calib;
 };
 
 class CameraInterface {
