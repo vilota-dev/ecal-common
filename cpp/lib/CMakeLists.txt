@@ -43,6 +43,7 @@ include_directories(
       ../../src/capnp/se3.capnp
       ../../src/capnp/cameraintrinsic.capnp
       ../../src/capnp/sensorextrinsic.capnp
+      ../../src/capnp/cameracontrol.capnp
       )
 
 add_library(ecal_camera 

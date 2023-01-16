@@ -30,6 +30,9 @@ int main() {
     camera->registerSyncedCameraCallback(callbackSyncedCameras);
     camera->registerImuCallback(callbackImu);
 
+    vk::CameraControlData control;
+    camera->sendCameraControl(control);
+
     while (true) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }

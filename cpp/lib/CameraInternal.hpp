@@ -8,10 +8,13 @@
 #include <ecal/ecal.h>
 #include <ecal/msg/capnproto/helper.h>
 #include <ecal/msg/capnproto/subscriber.h>
+#include <ecal/msg/capnproto/publisher.h>
 
 
 #include <capnp/image.capnp.h>
 #include <capnp/imu.capnp.h>
+
+#include <capnp/cameracontrol.capnp.h>
 
 namespace vk 
 {
@@ -110,6 +113,8 @@ class CameraInternal : public CameraInterface {
     void registerSyncedCameraCallback(callbackCamera callback);
     void registerImuCallback(callbackImu callback);
 
+    void sendCameraControl(const CameraControlData& data);
+
     ~CameraInternal();
 
   private:
@@ -135,6 +140,9 @@ class CameraInternal : public CameraInterface {
 
     MessageSynchroniserExact<CameraFrameData::Ptr> m_messageSyncHandler;
     ImuFrameData::Ptr m_imuMessage;
+
+    // camera control
+    std::shared_ptr<eCAL::capnproto::CPublisher<ecal::CameraControl>> m_cameraControlPub;
 
 };
 

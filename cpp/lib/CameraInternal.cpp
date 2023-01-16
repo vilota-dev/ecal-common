@@ -36,6 +36,14 @@ void CameraInternal::init(const CameraParams &params) {
         m_imuSubMap.emplace(m_params.imu_topic, m_params.imu_topic);
         m_imuSubMap.at(m_params.imu_topic).AddReceiveCallback(callback);
     }
+
+    // initialise publishers
+
+    if (!m_params.camera_control_topic.empty()) {
+        m_cameraControlPub = std::make_shared<eCAL::capnproto::CPublisher<ecal::CameraControl>>();
+        m_cameraControlPub->Create(m_params.camera_control_topic);
+    }
+    
     
 }
 
@@ -311,6 +319,34 @@ void CameraInternal::imuCallbackInternal(const char* ecal_topic_name, ecal::Imu:
         callback(m_imuMessage);
     }
     
+
+}
+
+void CameraInternal::sendCameraControl(const CameraControlData& data) {
+
+    ecal::CameraControl::Builder msg = m_cameraControlPub->GetBuilder();
+
+    std::uint64_t nowTns = std::chrono::steady_clock::now().time_since_epoch().count();
+
+    if (msg.hasHeader()) {
+        auto header = msg.getHeader();
+    
+        header.setStamp(nowTns);
+        header.setSeq(header.getSeq() + 1);
+    }else {
+        auto header = msg.getHeader();
+    
+        header.setStamp(nowTns);
+        header.setSeq(0);
+    }
+
+    msg.setStreaming(data.streaming);
+    msg.setExposureUSec(data.exposureUSec);
+    msg.setGain(data.gain);
+    msg.setExposureCompensation(data.exposureCompensation);
+    msg.setSensorIdx(data.sensorIdx);
+
+    m_cameraControlPub->Send();
 
 }
 

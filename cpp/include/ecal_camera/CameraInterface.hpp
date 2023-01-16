@@ -16,6 +16,7 @@ namespace vk
 struct CameraParams {
     std::vector<std::string> camera_topics = {"S0/camb", "S0/camc", "S0/camd"};
     std::string imu_topic = {"S0/imu"};
+    std::string camera_control_topic = {"S0/camera_control_in"};
     bool camera_exact_sync = true;
     std::string ecal_process_name = "camimu interface cpp";
 };
@@ -64,6 +65,16 @@ struct ImuFrameData {
     ImuCalibration calib;
 };
 
+struct CameraControlData {
+    std::int8_t streaming = -1;
+
+    std::int32_t exposureUSec = -1;
+    std::int32_t gain = -1;
+
+    std::int8_t exposureCompensation = -99;
+    std::int8_t sensorIdx = -1;
+};
+
 class CameraInterface {
 
     public:
@@ -76,6 +87,8 @@ class CameraInterface {
 
         virtual void registerSyncedCameraCallback(callbackCamera callback) = 0;
         virtual void registerImuCallback(callbackImu callback) = 0;
+
+        virtual void sendCameraControl(const CameraControlData& data) = 0;
 
     protected:
 
