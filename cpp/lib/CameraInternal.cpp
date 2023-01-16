@@ -12,7 +12,7 @@ namespace vk
 void CameraInternal::init(const CameraParams &params) {
     m_params = params;
 
-    m_messageSyncHandler.init(m_params.camera_topics.size());
+    m_messageSyncHandler.init(m_params.camera_topics.size(), m_params.camera_topics);
 
     eCAL::Initialize(0, nullptr, m_params.ecal_process_name.c_str());
     eCAL::Process::SetState(proc_sev_healthy, proc_sev_level1, "I feel good !");
@@ -224,7 +224,7 @@ void CameraInternal::cameraCallbackInternal(const char* ecal_topic_name, ecal::I
         auto synced = m_messageSyncHandler.tryGet();
 
         if (synced.size()) {
-            std::cout << "synced image message at " << synced[0]->ts << std::endl;
+            // std::cout << "synced image message at " << synced[0]->ts << std::endl;
 
             // DEBUG 
             // for (size_t i = 0; i < synced.size(); i++) {
@@ -232,6 +232,10 @@ void CameraInternal::cameraCallbackInternal(const char* ecal_topic_name, ecal::I
             // }
 
             // cv::waitKey(3);
+
+            for (auto& callback : m_registeredImageCallbacks) {
+                callback(synced);
+            }
             
         }
 
@@ -301,6 +305,10 @@ void CameraInternal::imuCallbackInternal(const char* ecal_topic_name, ecal::Imu:
             std::cout << "body_T_imu: " << std::endl << m_imuMessage->calib.body_T_imu.affine() << std::endl;
 
         }
+    }
+
+    for (auto& callback : m_registeredImuCallbacks) {
+        callback(m_imuMessage);
     }
     
 

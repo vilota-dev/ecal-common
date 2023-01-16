@@ -20,8 +20,13 @@ template <typename T>
 class MessageSynchroniserExact {
 
   public:
-    void init(size_t N) {
+    void init(size_t N, std::vector<std::string> &names = {}) {
         m_N = N;
+        if (names.size()) {
+            assert(names.size() == N);
+            m_names = names;
+        }
+            
         m_queueMap.resize(m_N);
         m_lastTsMap.resize(m_N);
         m_lastSeqMap.resize(m_N);
@@ -32,10 +37,16 @@ class MessageSynchroniserExact {
             if (m_lastTsMap[idx] > ts)
             std::cout << "warn: ts regression detected, from " << m_lastTsMap[idx] << " to " << ts << std::endl;
         }
+        // else{
+        //     std::cout << "first message received at synchroniser for " << m_names.size() ? m_names[idx] : idx << std::endl;
+        // }
         m_queueMap[idx].push(std::make_pair(ts, msg));
 
-        if (m_queueMap[idx].size() > 50)
+        if (m_queueMap[idx].size() > 50) {
+            if (m_names.size())
+                std::cout << m_names[idx] << std::endl;
             throw std::runtime_error("too much message in the queue, sync msg is broken?");
+        }
 
         m_lastTsMap[idx] = ts;
         m_lastSeqMap[idx] = seq;
@@ -84,6 +95,7 @@ class MessageSynchroniserExact {
   private:
 
     size_t m_N;
+    std::vector<std::string> m_names;
     std::vector<std::queue<std::pair<std::uint64_t,T>>> m_queueMap;
     std::vector<std::uint64_t> m_lastTsMap;
     std::vector<std::uint64_t> m_lastSeqMap;
