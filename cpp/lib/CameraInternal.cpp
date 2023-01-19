@@ -106,6 +106,8 @@ void CameraInternal::cameraCallbackInternal(const char* ecal_topic_name, ecal::I
 
         }else {
             // first time setup for calibration
+
+            m_cameraCalibrationMap[idx] = {};
             
             updateIntrinsicCalibration = true;
             updateExtrinsicCalibration = true;
