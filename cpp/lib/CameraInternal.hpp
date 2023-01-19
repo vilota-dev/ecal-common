@@ -2,6 +2,7 @@
 
 #include <map>
 #include <queue>
+#include <mutex>
 
 #include <ecal_camera/CameraInterface.hpp>
 
@@ -43,7 +44,11 @@ class MessageSynchroniserExact {
         // else{
         //     std::cout << "first message received at synchroniser for " << m_names.size() ? m_names[idx] : idx << std::endl;
         // }
-        m_queueMap[idx].push(std::make_pair(ts, msg));
+
+        {
+            std::lock_guard<std::mutex> lock(m_mutexQueue);
+            m_queueMap[idx].push(std::make_pair(ts, msg));
+        }
 
         if (m_queueMap[idx].size() > 50) {
             if (m_names.size())
@@ -56,11 +61,14 @@ class MessageSynchroniserExact {
     }
 
     std::vector<T> tryGet() {
+
+        std::lock_guard<std::mutex> lock(m_mutexQueue);
+
         std::vector<T> ret;
 
         for (auto& queue : m_queueMap) {
             if (!queue.size())
-            return ret; // some queues are empty
+                return ret; // some queues are empty
         }
 
         std::uint64_t minTs, maxTs;
@@ -79,8 +87,11 @@ class MessageSynchroniserExact {
             // clean up all items smaller than maxTs
             for (size_t i = 0; i < m_N; i++) {
                 auto ts = m_queueMap[i].front().first;
-                if (ts < maxTs)
+                if (ts < maxTs) {
                     m_queueMap[i].pop();
+                    i--;
+                    continue;
+                }
             }
             return ret;
 
@@ -100,6 +111,7 @@ class MessageSynchroniserExact {
     size_t m_N;
     std::vector<std::string> m_names;
     std::vector<std::queue<std::pair<std::uint64_t,T>>> m_queueMap;
+    std::mutex m_mutexQueue;
     std::vector<std::uint64_t> m_lastTsMap;
     std::vector<std::uint64_t> m_lastSeqMap;
 
