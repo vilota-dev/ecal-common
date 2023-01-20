@@ -42,6 +42,11 @@ struct CameraFrameData {
     std::string encoding;
     cv::Mat image;
 
+    std::uint32_t exposureUSec;
+    std::uint32_t gain;
+
+    std::int8_t sensorIdx;
+
     CameraCalibration calib;
 
 };

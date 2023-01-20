@@ -231,6 +231,11 @@ void CameraInternal::cameraCallbackInternal(const char* ecal_topic_name, ecal::I
 
         auto synced = m_messageSyncHandler.tryGet();
 
+        //exposure, gain and sensorIdx
+        msg->exposureUSec = ecal_msg.getExposureUSec();
+        msg->gain = ecal_msg.getGain();
+        msg->sensorIdx = ecal_msg.getSensorIdx();
+
         if (synced.size()) {
             // std::cout << "synced image message at " << synced[0]->ts << std::endl;
 
