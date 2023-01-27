@@ -3,6 +3,17 @@
 using Cxx = import "/capnp/c++.capnp";
 $Cxx.namespace("ecal");
 
+struct ImuInstrinsic {
+    gyroNoiseStd @0:import "vector3d.capnp".Vector3d;
+    accelNoiseStd @1:import "vector3d.capnp".Vector3d;
+    gyroBiasStd @2:import "vector3d.capnp".Vector3d;
+    accelBiasStd @3:import "vector3d.capnp".Vector3d;
+
+    updateRate @4 :Int32;
+
+    lastModified @5 :UInt64; # UTC time in nanosecond
+}
+
 struct Imu {
     header @0 :import "header.capnp".Header;
 
@@ -11,6 +22,6 @@ struct Imu {
 
     streamName @3 :Text;
 
-    intrinsic @4 :Void;
+    intrinsic @4 :ImuInstrinsic;
     extrinsic @5 :import "sensorextrinsic.capnp".SensorExtrinsic;
 }
