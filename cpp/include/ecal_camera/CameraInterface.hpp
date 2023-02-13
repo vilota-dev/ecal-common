@@ -95,6 +95,8 @@ class CameraInterface {
 
         virtual void sendCameraControl(const CameraControlData& data) = 0;
 
+        virtual void sendJsonIn(const std::string& topic, const std::string& content) = 0;
+
     protected:
 
         CameraParams m_params;

@@ -23,7 +23,10 @@ find_package(OpenCV 4 REQUIRED)
 
 find_package(Eigen3 REQUIRED)
 
-find_package(CapnProto REQUIRED)
+if (NOT TARGET CapnProto::capnp)
+  find_package(CapnProto REQUIRED)
+endif()
+
 find_package(eCAL REQUIRED)
 
 include_directories(
@@ -46,11 +49,13 @@ include_directories(
       ../../src/capnp/cameracontrol.capnp
       )
 
-add_library(ecal_camera 
+add_library(ecal_camera
   CameraInternal.cpp
   CameraFactory.cpp
   ${CAPNP_SRCS}
   ${CAPNP_HDRS})
+target_include_directories(ecal_camera
+  INTERFACE ../include)
 target_link_libraries(ecal_camera 
   PUBLIC ${OpenCV_LIBS}
   PRIVATE Threads::Threads CapnProto::capnp eCAL::core)

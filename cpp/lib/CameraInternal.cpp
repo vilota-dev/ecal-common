@@ -14,8 +14,16 @@ void CameraInternal::init(const CameraParams &params) {
 
     m_messageSyncHandler.init(m_params.camera_topics.size(), m_params.camera_topics);
 
-    eCAL::Initialize(0, nullptr, m_params.ecal_process_name.c_str());
-    eCAL::Process::SetState(proc_sev_healthy, proc_sev_level1, "I feel good !");
+    if (!eCAL::IsInitialized(0)) {
+        eCAL::Initialize(0, nullptr, m_params.ecal_process_name.c_str());
+        eCAL::Process::SetState(proc_sev_healthy, proc_sev_level1, "I feel good !");
+
+        m_ecalInitialisedOutside = false;
+    }else {
+        std::cout << "eCAL already initialised" << std::endl;
+        m_ecalInitialisedOutside = true;
+    }
+    
 
     std::cout << "subscribe to camera topics:" << std::endl;
     size_t idx = 0;
@@ -355,9 +363,14 @@ void CameraInternal::sendCameraControl(const CameraControlData& data) {
 
 }
 
+void CameraInternal::sendJsonIn(const std::string& topic, const std::string& content) {
+
+}
+
 CameraInternal::~CameraInternal()
 {
-    eCAL::Finalize();
+    if (!m_ecalInitialisedOutside)
+        eCAL::Finalize();
 }
 
 

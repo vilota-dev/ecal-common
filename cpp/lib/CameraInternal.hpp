@@ -126,6 +126,8 @@ class CameraInternal : public CameraInterface {
     void registerImuCallback(callbackImu callback);
 
     void sendCameraControl(const CameraControlData& data);
+    
+    void sendJsonIn(const std::string& topic, const std::string& content);
 
     ~CameraInternal();
 
@@ -155,6 +157,8 @@ class CameraInternal : public CameraInterface {
 
     // camera control
     std::shared_ptr<eCAL::capnproto::CPublisher<ecal::CameraControl>> m_cameraControlPub;
+
+    bool m_ecalInitialisedOutside;
 
 };
 
