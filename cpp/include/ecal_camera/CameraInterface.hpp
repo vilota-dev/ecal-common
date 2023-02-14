@@ -14,11 +14,15 @@ namespace vk
 {
 
 struct CameraParams {
-    std::vector<std::string> camera_topics = {"S0/camb", "S0/camc", "S0/camd"};
-    std::string imu_topic = {"S0/imu"};
-    std::string camera_control_topic = {"S0/camera_control_in"};
+    std::string tf_prefix = "S0/";
+    std::vector<std::string> camera_topics = {"camb", "camc", "camd"}; // the order would be preserved, but should not be assumed
+    std::string imu_topic = {"imu"};
+    std::string camera_control_topic = {"camera_control_in"};
     bool camera_exact_sync = true;
     std::string ecal_process_name = "camimu interface cpp";
+
+    std::vector<std::string> idxTopicMap; // being populated
+    std::map<std::string, uint16_t> topicIdxMap; // being populated
 };
 
 struct CameraCalibration {
@@ -34,6 +38,8 @@ struct CameraCalibration {
 struct CameraFrameData {
 
     typedef std::shared_ptr<CameraFrameData> Ptr;
+
+    std::string prefixed_topic;
 
     std::uint64_t ts;
     std::uint64_t seq;
@@ -59,6 +65,8 @@ struct ImuCalibration {
 struct ImuFrameData {
 
     typedef std::shared_ptr<ImuFrameData> Ptr;
+
+    std::string prefixed_topic;
 
     std::uint64_t ts;
     std::uint64_t seq;
@@ -96,6 +104,8 @@ class CameraInterface {
         virtual void sendCameraControl(const CameraControlData& data) = 0;
 
         virtual void sendJsonIn(const std::string& topic, const std::string& content) = 0;
+
+        CameraParams getParams() {return m_params;}
 
     protected:
 

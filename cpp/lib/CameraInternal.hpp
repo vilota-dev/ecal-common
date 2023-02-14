@@ -24,12 +24,15 @@ template <typename T>
 class MessageSynchroniserExact {
 
   public:
-    void init(size_t N, std::vector<std::string> &names = {}) {
+    void init(size_t N, std::vector<std::string> &names = {}, std::string prefix = {}) {
         m_N = N;
         if (names.size()) {
             assert(names.size() == N);
             m_names = names;
         }
+
+        for (auto& name : m_names)
+            name = prefix + name;
             
         m_queueMap.resize(m_N);
         m_lastTsMap.resize(m_N);
@@ -169,7 +172,6 @@ class CameraInternal : public CameraInterface {
 
     std::map<std::string, eCAL::capnproto::CSubscriber<ecal::Image>> m_imageSubMap;
     std::map<std::string, eCAL::capnproto::CSubscriber<ecal::Imu>> m_imuSubMap;
-    std::vector<std::string> m_idxMap;
 
     // regarding lastSeq
     std::map<size_t, std::uint64_t> m_lastSeqCameraFrameMap;

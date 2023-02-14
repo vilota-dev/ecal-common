@@ -12,7 +12,7 @@ namespace vk
 void CameraInternal::init(const CameraParams &params) {
     m_params = params;
 
-    m_messageSyncHandler.init(m_params.camera_topics.size(), m_params.camera_topics);
+    m_messageSyncHandler.init(m_params.camera_topics.size(), m_params.camera_topics, m_params.tf_prefix);
 
     if (!eCAL::IsInitialized(0)) {
         eCAL::Initialize(0, nullptr, m_params.ecal_process_name.c_str());
@@ -28,28 +28,32 @@ void CameraInternal::init(const CameraParams &params) {
     std::cout << "subscribe to camera topics:" << std::endl;
     size_t idx = 0;
     for (auto& topic : m_params.camera_topics) {
-        std::cout << " - " << topic << std::endl;
+        std::string prefixed_topic = m_params.tf_prefix + topic;
+        std::cout << " - " << prefixed_topic << std::endl;
         auto callback = std::bind(&CameraInternal::cameraCallbackInternal, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, idx);
-        m_imageSubMap.emplace(topic, topic);
+        m_imageSubMap.emplace(topic, prefixed_topic);
         m_imageSubMap.at(topic).AddReceiveCallback(callback);
-        m_idxMap.push_back(topic);
+        m_params.idxTopicMap.push_back(topic);
+        m_params.topicIdxMap[topic] = idx;
 
         idx++;
     }
 
     if (!m_params.imu_topic.empty()) {
+        std::string prefixed_topic = m_params.tf_prefix + m_params.imu_topic;
         std::cout << "subscribe to imu topic:" << std::endl;
-        std::cout << " - " << m_params.imu_topic << std::endl;
+        std::cout << " - " << prefixed_topic << std::endl;
         auto callback = std::bind(&CameraInternal::imuCallbackInternal, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
-        m_imuSubMap.emplace(m_params.imu_topic, m_params.imu_topic);
+        m_imuSubMap.emplace(m_params.imu_topic, prefixed_topic);
         m_imuSubMap.at(m_params.imu_topic).AddReceiveCallback(callback);
     }
 
     // initialise publishers
 
     if (!m_params.camera_control_topic.empty()) {
+        std::string prefixed_topic = m_params.tf_prefix + m_params.camera_control_topic;
         m_cameraControlPub = std::make_shared<eCAL::capnproto::CPublisher<ecal::CameraControl>>();
-        m_cameraControlPub->Create(m_params.camera_control_topic);
+        m_cameraControlPub->Create(prefixed_topic);
     }
     
     
@@ -78,6 +82,7 @@ void CameraInternal::cameraCallbackInternal(const char* ecal_topic_name, ecal::I
         const auto& header = ecal_msg.getHeader();
         const auto& streamName = ecal_msg.getStreamName().cStr();
 
+        msg->prefixed_topic = ecal_topic_name;
         msg->ts = header.getStamp();
         msg->seq = header.getSeq();
 
@@ -280,6 +285,7 @@ void CameraInternal::imuCallbackInternal(const char* ecal_topic_name, ecal::Imu:
         m_imuMessage->lastSeq = m_imuMessage->seq;
     }
 
+    m_imuMessage->prefixed_topic = ecal_topic_name;
     m_imuMessage->ts = header.getStamp();
     m_imuMessage->seq = header.getSeq();
 
