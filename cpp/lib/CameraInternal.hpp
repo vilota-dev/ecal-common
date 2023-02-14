@@ -34,6 +34,8 @@ class MessageSynchroniserExact {
         m_queueMap.resize(m_N);
         m_lastTsMap.resize(m_N);
         m_lastSeqMap.resize(m_N);
+
+        m_gottenFirstSync = false;
     }
 
     void addMessage(size_t idx, std::uint64_t ts, std::uint64_t seq, T msg) {
@@ -48,12 +50,35 @@ class MessageSynchroniserExact {
         {
             std::lock_guard<std::mutex> lock(m_mutexQueue);
             m_queueMap[idx].push(std::make_pair(ts, msg));
-        }
+            
+            constexpr size_t MAX_BUFFER_SIZE = 50;
+            if (m_queueMap[idx].size() > MAX_BUFFER_SIZE) {
 
-        if (m_queueMap[idx].size() > 50) {
-            if (m_names.size())
-                std::cout << m_names[idx] << std::endl;
-            throw std::runtime_error("too much message in the queue, sync msg is broken?");
+                std::string name;
+                if (m_names.size())
+                    name = m_names[idx];
+
+                // it is ok to have failed the queue before first sync get done
+                if (m_queueMap[idx].size() % MAX_BUFFER_SIZE == 1) {
+                    
+                    if ( m_gottenFirstSync ) {
+                        std::cout << name << ": too much message in the queue, sync msg is broken?" << std::endl;
+                    }else{
+                        std::cout << name << ": buffer full while no sync detected yet..." << std::endl;
+                    }
+
+                    for (size_t i = 0; i < m_N; i++) {
+                        int size = m_queueMap[i].size();
+                        std::string name = m_names.size() ? m_names[i] : std::to_string(i);
+                        std::cout << " - " << name << ": " << size << std::endl;
+                    }
+                }
+
+
+                
+                    
+            }
+            
         }
 
         m_lastTsMap[idx] = ts;
@@ -89,7 +114,10 @@ class MessageSynchroniserExact {
                 auto ts = m_queueMap[i].front().first;
                 if (ts < maxTs) {
                     m_queueMap[i].pop();
-                    i--;
+
+                    // if the queue is not empty, try again
+                    if (m_queueMap[i].size())
+                        i--;
                     continue;
                 }
             }
@@ -97,6 +125,7 @@ class MessageSynchroniserExact {
 
         }else{
             // sync found, returning and popping
+            m_gottenFirstSync = true;
             ret.resize(m_N);
             for (size_t i = 0; i < m_N; i++) {
                 ret[i] = m_queueMap[i].front().second;
@@ -114,6 +143,7 @@ class MessageSynchroniserExact {
     std::mutex m_mutexQueue;
     std::vector<std::uint64_t> m_lastTsMap;
     std::vector<std::uint64_t> m_lastSeqMap;
+    bool m_gottenFirstSync;
 
 };
 
