@@ -235,14 +235,16 @@ void CameraInternal::cameraCallbackInternal(const char* ecal_topic_name, ecal::I
             throw std::runtime_error("not implemented encoding");
         }
 
-        m_messageSyncHandler.addMessage(idx, header.getStamp(), header.getSeq(), msg);
-
-        auto synced = m_messageSyncHandler.tryGet();
-
         //exposure, gain and sensorIdx
         msg->exposureUSec = ecal_msg.getExposureUSec();
         msg->gain = ecal_msg.getGain();
         msg->sensorIdx = ecal_msg.getSensorIdx();
+
+        m_messageSyncHandler.addMessage(idx, header.getStamp(), header.getSeq(), msg);
+
+        // no more access to msg pointer beyond this point
+
+        auto synced = m_messageSyncHandler.tryGet();
 
         if (synced.size()) {
             // std::cout << "synced image message at " << synced[0]->ts << std::endl;
