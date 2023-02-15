@@ -302,12 +302,54 @@ void CameraInternal::imuCallbackInternal(const char* ecal_topic_name, ecal::Imu:
     };
 
     // calibration logic
-    bool updateCalibration = false;
-    if (m_imuMessage->calib.lastModifiedExtrinsic != ecal_msg.getExtrinsic().getLastModified()) {
-        updateCalibration = true;
+    bool updateIntrinsicCalibration = false;
+    bool updateExtrinsicCalibration = false;
+
+    if (m_imuMessage->calib.lastModifiedIntrinsic != ecal_msg.getIntrinsic().getLastModified()) {
+        updateIntrinsicCalibration = true;
     }
 
-    if (updateCalibration) {
+    if (m_imuMessage->calib.lastModifiedExtrinsic != ecal_msg.getExtrinsic().getLastModified()) {
+        updateExtrinsicCalibration = true;
+    }
+
+    // update imu intrinsic
+    if (updateIntrinsicCalibration) {
+        m_imuMessage->calib.lastModifiedIntrinsic = ecal_msg.getIntrinsic().getLastModified();
+        std::cout << "received updated intrinsic for imu, ts = " << m_imuMessage->calib.lastModifiedExtrinsic << std::endl;
+
+        const auto& intrinsicMsg = ecal_msg.getIntrinsic();
+
+        m_imuMessage->calib.gyroNoiseStd = {
+            intrinsicMsg.getGyroNoiseStd().getX(),
+            intrinsicMsg.getGyroNoiseStd().getY(),
+            intrinsicMsg.getGyroNoiseStd().getZ()
+        };
+
+        m_imuMessage->calib.accelNoiseStd = {
+            intrinsicMsg.getAccelNoiseStd().getX(),
+            intrinsicMsg.getAccelNoiseStd().getY(),
+            intrinsicMsg.getAccelNoiseStd().getZ()
+        };
+
+        m_imuMessage->calib.gyroBiasStd = {
+            intrinsicMsg.getGyroBiasStd().getX(),
+            intrinsicMsg.getGyroBiasStd().getY(),
+            intrinsicMsg.getGyroBiasStd().getZ()
+        };
+
+        m_imuMessage->calib.accelBiasStd = {
+            intrinsicMsg.getAccelBiasStd().getX(),
+            intrinsicMsg.getAccelBiasStd().getY(),
+            intrinsicMsg.getAccelBiasStd().getZ()
+        };
+
+        m_imuMessage->calib.updateRate = intrinsicMsg.getUpdateRate();
+
+    }
+
+    // update imu extrinsic (body)
+    if (updateExtrinsicCalibration) {
         m_imuMessage->calib.lastModifiedExtrinsic = ecal_msg.getExtrinsic().getLastModified();
         std::cout << "received updated extrinsic for imu, ts = " << m_imuMessage->calib.lastModifiedExtrinsic << std::endl;
 

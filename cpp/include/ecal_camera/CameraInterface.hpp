@@ -27,7 +27,7 @@ struct CameraParams {
 
 struct CameraCalibration {
     std::map<std::string, Eigen::VectorXd> intrinsicMap; // there might be multiple calibration for the same camera
-    std::uint64_t lastModifiedIntrinsic;
+    std::uint64_t lastModifiedIntrinsic = 0;
     bool rectified;
 
     Eigen::Isometry3d imu_T_cam;
@@ -58,6 +58,15 @@ struct CameraFrameData {
 };
 
 struct ImuCalibration {
+    
+    Eigen::Vector3d gyroNoiseStd;
+    Eigen::Vector3d accelNoiseStd;
+    Eigen::Vector3d gyroBiasStd;
+    Eigen::Vector3d accelBiasStd;
+
+    int updateRate;
+    std::uint64_t lastModifiedIntrinsic = 0;
+
     Eigen::Isometry3d body_T_imu;
     std::uint64_t lastModifiedExtrinsic = 0;
 };
