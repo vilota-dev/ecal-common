@@ -14,6 +14,7 @@ namespace vk
 {
 
 struct CameraParams {
+    bool half_resolution = false;
     std::string tf_prefix = "S0/";
     std::vector<std::string> camera_topics = {"camb", "camc", "camd"}; // the order would be preserved, but should not be assumed
     std::string imu_topic = {"imu"};
@@ -39,6 +40,7 @@ struct CameraFrameData {
 
     typedef std::shared_ptr<CameraFrameData> Ptr;
 
+    std::uint16_t idx; // index showed up in callbackCamera callback
     std::string prefixed_topic;
 
     std::uint64_t ts;

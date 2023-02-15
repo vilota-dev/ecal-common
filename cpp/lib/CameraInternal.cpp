@@ -12,6 +12,9 @@ namespace vk
 void CameraInternal::init(const CameraParams &params) {
     m_params = params;
 
+    if (params.half_resolution)
+        std::cout << "half resolution mode enabled" << std::endl;
+
     m_messageSyncHandler.init(m_params.camera_topics.size(), m_params.camera_topics, m_params.tf_prefix);
 
     if (!eCAL::IsInitialized(0)) {
@@ -82,6 +85,7 @@ void CameraInternal::cameraCallbackInternal(const char* ecal_topic_name, ecal::I
         const auto& header = ecal_msg.getHeader();
         const auto& streamName = ecal_msg.getStreamName().cStr();
 
+        msg->idx = idx;
         msg->prefixed_topic = ecal_topic_name;
         msg->ts = header.getStamp();
         msg->seq = header.getSeq();
@@ -141,6 +145,14 @@ void CameraInternal::cameraCallbackInternal(const char* ecal_topic_name, ecal::I
                 const auto& pinhole = intrinsicMsg.getPinhole();
 
                 Eigen::Vector4d intrinsic = {pinhole.getFx(), pinhole.getFy(), pinhole.getCx(), pinhole.getCy()};
+
+                if (m_params.half_resolution) {
+                    intrinsic[0] /= 2;
+                    intrinsic[1] /= 2;
+                    intrinsic[2] /= 2;
+                    intrinsic[3] /= 2;
+                }
+
                 calibStored.intrinsicMap["pinhole"] = intrinsic;
             }
 
@@ -151,6 +163,14 @@ void CameraInternal::cameraCallbackInternal(const char* ecal_topic_name, ecal::I
                 Eigen::Matrix<double, 8, 1> intrinsic;
                 intrinsic << pinhole.getFx(), pinhole.getFy(), pinhole.getCx(), pinhole.getCy(),
                     kb4.getK1(), kb4.getK2(), kb4.getK3(), kb4.getK4();
+
+                if (m_params.half_resolution) {
+                    intrinsic[0] /= 2;
+                    intrinsic[1] /= 2;
+                    intrinsic[2] /= 2;
+                    intrinsic[3] /= 2;
+                }
+
                 calibStored.intrinsicMap["kb4"] = intrinsic;
             }
 
@@ -161,6 +181,14 @@ void CameraInternal::cameraCallbackInternal(const char* ecal_topic_name, ecal::I
                 Eigen::Matrix<double, 6, 1> intrinsic;
                 intrinsic << pinhole.getFx(), pinhole.getFy(), pinhole.getCx(), pinhole.getCy(),
                     ds.getXi(), ds.getAlpha();
+
+                if (m_params.half_resolution) {
+                    intrinsic[0] /= 2;
+                    intrinsic[1] /= 2;
+                    intrinsic[2] /= 2;
+                    intrinsic[3] /= 2;
+                }
+
                 calibStored.intrinsicMap["ds"] = intrinsic;
             }
 
@@ -191,6 +219,8 @@ void CameraInternal::cameraCallbackInternal(const char* ecal_topic_name, ecal::I
                     extrinsicMsg.getBodyFrame().getOrientation().getZ()
                 };
 
+                orientation.normalize();
+
                 calibStored.body_T_cam.linear() = orientation.toRotationMatrix();
                 calibStored.body_T_cam.translation() = position;
 
@@ -213,6 +243,8 @@ void CameraInternal::cameraCallbackInternal(const char* ecal_topic_name, ecal::I
                     extrinsicMsg.getImuFrame().getOrientation().getZ()
                 };
 
+                orientation.normalize();
+
                 calibStored.imu_T_cam.linear() = orientation.toRotationMatrix();
                 calibStored.imu_T_cam.translation() = position;
 
@@ -230,15 +262,28 @@ void CameraInternal::cameraCallbackInternal(const char* ecal_topic_name, ecal::I
             // ecal_msg.getData().asBytes().begin()
             const cv::Mat rawImg(ecal_msg.getHeight(), ecal_msg.getWidth(), CV_8UC1, 
                 const_cast<unsigned char*>(ecal_msg.getData().asBytes().begin()));
-            msg->image = rawImg.clone();
+            
+            if (m_params.half_resolution) {
+                cv::resize(rawImg, msg->image, cv::Size(), 0.5, 0.5);
+            }else
+                msg->image = rawImg.clone();
         }else if (ecal_msg.getEncoding() == ecal::Image::Encoding::YUV420) {
             msg->encoding = "bgr8";
             const cv::Mat rawImg(ecal_msg.getHeight() * 3 / 2, ecal_msg.getWidth(), CV_8UC1, 
                 const_cast<unsigned char*>(ecal_msg.getData().asBytes().begin()));
-            cv::cvtColor(rawImg, msg->image, cv::COLOR_YUV2BGR_IYUV);
+            
+            if (m_params.half_resolution) {
+                cv::Mat midImg;
+                cv::resize(rawImg, midImg, cv::Size(), 0.5, 0.5);
+                cv::cvtColor(midImg, msg->image, cv::COLOR_YUV2BGR_IYUV);
+            }else
+                cv::cvtColor(rawImg, msg->image, cv::COLOR_YUV2BGR_IYUV);
         }else{
             throw std::runtime_error("not implemented encoding");
         }
+
+        if (!msg->image.isContinuous())
+            throw std::runtime_error("cv mat is not continuous.");
 
         //exposure, gain and sensorIdx
         msg->exposureUSec = ecal_msg.getExposureUSec();
@@ -369,6 +414,8 @@ void CameraInternal::imuCallbackInternal(const char* ecal_topic_name, ecal::Imu:
                 extrinsicMsg.getBodyFrame().getOrientation().getY(),
                 extrinsicMsg.getBodyFrame().getOrientation().getZ()
             };
+
+            orientation.normalize();
 
             m_imuMessage->calib.body_T_imu.linear() = orientation.toRotationMatrix();
             m_imuMessage->calib.body_T_imu.translation() = position;
