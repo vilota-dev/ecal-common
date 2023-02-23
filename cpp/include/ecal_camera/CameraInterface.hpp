@@ -22,8 +22,8 @@ struct CameraParams {
     bool camera_exact_sync = true;
     std::string ecal_process_name = "camimu interface cpp";
 
-    std::vector<std::string> idxTopicMap; // being populated
-    std::map<std::string, uint16_t> topicIdxMap; // being populated
+    std::vector<std::string> idxTopicMap; // being populated, without prefix
+    std::map<std::string, uint16_t> topicIdxMap; // being populated, without prefix
 };
 
 struct CameraCalibration {
@@ -41,7 +41,8 @@ struct CameraFrameData {
     typedef std::shared_ptr<CameraFrameData> Ptr;
 
     std::uint16_t idx; // index showed up in callbackCamera callback
-    std::string prefixed_topic;
+    std::string prefixed_topic; // e.g. "S0/cama"
+    std::string topic; // topic without prefix, e.g. "cama"
 
     std::uint64_t ts;
     std::uint64_t seq;

@@ -87,6 +87,7 @@ void CameraInternal::cameraCallbackInternal(const char* ecal_topic_name, ecal::I
 
         msg->idx = idx;
         msg->prefixed_topic = ecal_topic_name;
+        msg->topic = m_params.idxTopicMap[idx];
         msg->ts = header.getStamp();
         msg->seq = header.getSeq();
 
