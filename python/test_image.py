@@ -20,7 +20,7 @@ def callback(topic_name, msg, ts):
 
     # need to remove the .decode() function within the Python API of ecal.core.subscriber StringSubscriber
     with eCALImage.Image.from_bytes(msg) as imageMsg:
-        print(f"seq = {imageMsg.header.seq}, with {len(msg)} bytes, encoding = {imageMsg.encoding}")
+        print(f"seq = {imageMsg.header.seq}, stamp = {imageMsg.header.stamp}, with {len(msg)} bytes, encoding = {imageMsg.encoding}")
         print(f"width = {imageMsg.width}, height = {imageMsg.height}")
         print(f"exposure = {imageMsg.exposureUSec}, gain = {imageMsg.gain}")
         print(f"intrinsic = {imageMsg.intrinsic}")

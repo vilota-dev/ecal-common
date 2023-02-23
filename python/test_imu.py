@@ -13,17 +13,26 @@ capnp.add_import_hook(['../src/capnp'])
 
 import imu_capnp as eCALImu
 
+first_message = True
 
 def callback(topic_name, msg, time):
 
+    global first_message
+
     # need to remove the .decode() function within the Python API of ecal.core.subscriber ByteSubscriber
+    
     with eCALImu.Imu.from_bytes(msg) as imuMsg:
         print(f"seq = {imuMsg.header.seq}")
         accel = np.array([imuMsg.linearAcceleration.x, imuMsg.linearAcceleration.y, imuMsg.linearAcceleration.z])
         gyro = np.array([imuMsg.angularVelocity.x, imuMsg.angularVelocity.y, imuMsg.angularVelocity.z])
         print(f"accel = {accel}")
         print(f"gyro = {gyro}")
-        print(f"extrinsic = {imuMsg.extrinsic}")
+
+        if first_message:
+            print(f"extrinsic = {imuMsg.extrinsic}")
+            print(f"time_offset_ns = {imuMsg.intrinsic.timeOffsetNs}")
+            print(f"update_rate = {imuMsg.intrinsic.updateRate}")
+            first_message = False
 
 def main():  
 

@@ -183,7 +183,7 @@ def main(mode):
     # set process state
     ecal_core.set_process_state(1, 1, "I feel good")
 
-    image_topics = ["S0/camc", "S0/cama"]
+    image_topics = ["S0/camb", "S0/camd", "S0/camc"]
     imu_topic = "S0/imu"
 
     if mode == DatasetMode.SNAPSHOTS:
@@ -223,7 +223,7 @@ def main(mode):
             imageMsg = image_dict[imageName]
             mat = np.frombuffer(imageMsg.data, dtype=np.uint8)
             mat = mat.reshape((imageMsg.height, imageMsg.width, 1))
-            mat_resized = image_resize(mat, width=600)
+            mat_resized = image_resize(mat, width=640)
 
             image_list.append(mat_resized)
 
