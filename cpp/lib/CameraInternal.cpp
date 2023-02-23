@@ -391,6 +391,7 @@ void CameraInternal::imuCallbackInternal(const char* ecal_topic_name, ecal::Imu:
         };
 
         m_imuMessage->calib.updateRate = intrinsicMsg.getUpdateRate();
+        m_imuMessage->calib.timeOffsetNs = intrinsicMsg.getTimeOffsetNs();
 
     }
 

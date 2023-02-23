@@ -68,6 +68,7 @@ struct ImuCalibration {
     Eigen::Vector3d accelBiasStd;
 
     int updateRate;
+    int timeOffsetNs;
     std::uint64_t lastModifiedIntrinsic = 0;
 
     Eigen::Isometry3d body_T_imu;
