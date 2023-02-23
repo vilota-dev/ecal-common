@@ -10,8 +10,9 @@ struct ImuInstrinsic {
     accelBiasStd @3:import "vector3d.capnp".Vector3d;
 
     updateRate @4 :Int32;
+    timeOffsetNs @5 :Int64; # camera + timeOffsetNs = imu
 
-    lastModified @5 :UInt64; # UTC time in nanosecond
+    lastModified @6 :UInt64; # UTC time in nanosecond
 }
 
 struct Imu {
