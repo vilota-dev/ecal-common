@@ -12,6 +12,7 @@ namespace vk
 
 void CameraInternal::init(const CameraParams &params) {
     m_params = params;
+    m_lastSeqImu = 0;
 
     if (params.half_resolution)
         std::cout << "half resolution mode enabled" << std::endl;
@@ -376,54 +377,56 @@ void CameraInternal::imuCallbackInternal(const char* ecal_topic_name, ecal::Imu:
     bool updateIntrinsicCalibration = false;
     bool updateExtrinsicCalibration = false;
 
-    if (imuMessage->calib.lastModifiedIntrinsic != ecal_msg.getIntrinsic().getLastModified()) {
+    auto& calibStored = m_imuCalibration;
+
+    if (calibStored.lastModifiedIntrinsic != ecal_msg.getIntrinsic().getLastModified()) {
         updateIntrinsicCalibration = true;
     }
 
-    if (imuMessage->calib.lastModifiedExtrinsic != ecal_msg.getExtrinsic().getLastModified()) {
+    if (calibStored.lastModifiedExtrinsic != ecal_msg.getExtrinsic().getLastModified()) {
         updateExtrinsicCalibration = true;
     }
 
     // update imu intrinsic
     if (updateIntrinsicCalibration) {
-        imuMessage->calib.lastModifiedIntrinsic = ecal_msg.getIntrinsic().getLastModified();
-        std::cout << "received updated intrinsic for imu, ts = " << imuMessage->calib.lastModifiedExtrinsic << std::endl;
+        calibStored.lastModifiedIntrinsic = ecal_msg.getIntrinsic().getLastModified();
+        std::cout << "received updated intrinsic for imu, ts = " << calibStored.lastModifiedExtrinsic << std::endl;
 
         const auto& intrinsicMsg = ecal_msg.getIntrinsic();
 
-        imuMessage->calib.gyroNoiseStd = {
+        calibStored.gyroNoiseStd = {
             intrinsicMsg.getGyroNoiseStd().getX(),
             intrinsicMsg.getGyroNoiseStd().getY(),
             intrinsicMsg.getGyroNoiseStd().getZ()
         };
 
-        imuMessage->calib.accelNoiseStd = {
+        calibStored.accelNoiseStd = {
             intrinsicMsg.getAccelNoiseStd().getX(),
             intrinsicMsg.getAccelNoiseStd().getY(),
             intrinsicMsg.getAccelNoiseStd().getZ()
         };
 
-        imuMessage->calib.gyroBiasStd = {
+        calibStored.gyroBiasStd = {
             intrinsicMsg.getGyroBiasStd().getX(),
             intrinsicMsg.getGyroBiasStd().getY(),
             intrinsicMsg.getGyroBiasStd().getZ()
         };
 
-        imuMessage->calib.accelBiasStd = {
+        calibStored.accelBiasStd = {
             intrinsicMsg.getAccelBiasStd().getX(),
             intrinsicMsg.getAccelBiasStd().getY(),
             intrinsicMsg.getAccelBiasStd().getZ()
         };
 
-        imuMessage->calib.updateRate = intrinsicMsg.getUpdateRate();
-        imuMessage->calib.timeOffsetNs = intrinsicMsg.getTimeOffsetNs();
+        calibStored.updateRate = intrinsicMsg.getUpdateRate();
+        calibStored.timeOffsetNs = intrinsicMsg.getTimeOffsetNs();
 
     }
 
     // update imu extrinsic (body)
     if (updateExtrinsicCalibration) {
-        imuMessage->calib.lastModifiedExtrinsic = ecal_msg.getExtrinsic().getLastModified();
-        std::cout << "received updated extrinsic for imu, ts = " << imuMessage->calib.lastModifiedExtrinsic << std::endl;
+        calibStored.lastModifiedExtrinsic = ecal_msg.getExtrinsic().getLastModified();
+        std::cout << "received updated extrinsic for imu, ts = " << calibStored.lastModifiedExtrinsic << std::endl;
 
         const auto& extrinsicMsg = ecal_msg.getExtrinsic();
 
@@ -444,13 +447,15 @@ void CameraInternal::imuCallbackInternal(const char* ecal_topic_name, ecal::Imu:
 
             orientation.normalize();
 
-            imuMessage->calib.body_T_imu.linear() = orientation.toRotationMatrix();
-            imuMessage->calib.body_T_imu.translation() = position;
+            calibStored.body_T_imu.linear() = orientation.toRotationMatrix();
+            calibStored.body_T_imu.translation() = position;
 
-            std::cout << "body_T_imu: " << std::endl << imuMessage->calib.body_T_imu.affine() << std::endl;
+            std::cout << "body_T_imu: " << std::endl << calibStored.body_T_imu.affine() << std::endl;
 
         }
     }
+
+    imuMessage->calib = calibStored;
 
     for (auto& callback : m_registeredImuCallbacks) {
         callback(imuMessage);
