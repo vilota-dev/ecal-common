@@ -160,7 +160,7 @@ class CameraInternal : public CameraInterface {
 
     void sendCameraControl(const CameraControlData& data);
     
-    void sendJsonIn(const std::string& topic, const std::string& content);
+    // void sendJsonIn(const std::string& topic, const std::string& content);
 
     ~CameraInternal();
 

@@ -487,9 +487,9 @@ void CameraInternal::sendCameraControl(const CameraControlData& data) {
 
 }
 
-void CameraInternal::sendJsonIn(const std::string& topic, const std::string& content) {
+// void CameraInternal::sendJsonIn(const std::string& topic, const std::string& content) {
 
-}
+// }
 
 CameraInternal::~CameraInternal()
 {
