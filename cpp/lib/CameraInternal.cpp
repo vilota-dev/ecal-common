@@ -5,6 +5,7 @@
 #include <opencv2/imgproc/imgproc.hpp>
 // #include <opencv2/highgui/highgui.hpp> // for debugging
 
+#define UNUSED(x) (void)(x)
 namespace vk 
 {
 
@@ -75,7 +76,7 @@ void CameraInternal::registerImuCallback(callbackImu callback) {
 
 void CameraInternal::cameraCallbackInternal(const char* ecal_topic_name, ecal::Image::Reader ecal_msg, const long long ecal_ts, size_t idx) {
     
-
+    UNUSED(ecal_ts);
     // we need to have logic synchronizing all cameras
 
     if (m_params.camera_exact_sync) {
@@ -328,6 +329,7 @@ void CameraInternal::cameraCallbackInternal(const char* ecal_topic_name, ecal::I
 
 void CameraInternal::imuCallbackInternal(const char* ecal_topic_name, ecal::Imu::Reader ecal_msg, const long long ecal_ts) {
 
+    UNUSED(ecal_ts);
     // std::cout << topic_name << " data received at ts = " << ts << std::endl;
 
     const auto& header = ecal_msg.getHeader();
