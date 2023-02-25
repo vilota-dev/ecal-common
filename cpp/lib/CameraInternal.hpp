@@ -175,7 +175,7 @@ class CameraInternal : public CameraInterface {
 
     // regarding lastSeq
     std::map<size_t, std::uint64_t> m_lastSeqCameraFrameMap;
-    std::uint64_t m_lastSeqImuFrameMap = 0;
+    std::uint64_t m_lastSeqImu = 0;
 
     // regarding calibration
     std::map<size_t, CameraCalibration> m_cameraCalibrationMap;
@@ -185,7 +185,6 @@ class CameraInternal : public CameraInterface {
     std::vector<callbackImu> m_registeredImuCallbacks;
 
     MessageSynchroniserExact<CameraFrameData::Ptr> m_messageSyncHandler;
-    ImuFrameData::Ptr m_imuMessage;
 
     // camera control
     std::shared_ptr<eCAL::capnproto::CPublisher<ecal::CameraControl>> m_cameraControlPub;

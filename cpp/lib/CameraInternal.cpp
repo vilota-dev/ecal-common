@@ -93,10 +93,19 @@ void CameraInternal::cameraCallbackInternal(const char* ecal_topic_name, ecal::I
 
         // logic on lastSeq
         if (m_lastSeqCameraFrameMap.count(idx)) {
-            
+
             msg->lastSeq = m_lastSeqCameraFrameMap.at(idx);
             m_lastSeqCameraFrameMap.at(idx) = msg->seq;
-            
+
+            // sanity check for sequence
+            if (msg->lastSeq == msg->seq) {
+                std::cout << "error: duplicated image message " << ecal_topic_name << " detected: seq = " << msg->lastSeq << ", skipping " << std::endl;
+                return;
+            }else if (msg->lastSeq > msg->seq) {
+                std::cout << "error: image message " << ecal_topic_name << " sequence regression, from " << msg->lastSeq << " to " << msg->seq << ", skipping " << std::endl;
+                return;
+            }
+
         }else {
             // first time obtaining the message
             msg->lastSeq = 0;
@@ -323,25 +332,39 @@ void CameraInternal::imuCallbackInternal(const char* ecal_topic_name, ecal::Imu:
 
     const auto& header = ecal_msg.getHeader();
 
-    if (!m_imuMessage) {
+    ImuFrameData::Ptr imuMessage = std::make_shared<ImuFrameData>();
+
+    imuMessage->seq = header.getSeq();
+
+    if (m_lastSeqImu == 0) {
         // first time receiving message
-        m_imuMessage = std::make_shared<ImuFrameData>();
+        imuMessage->lastSeq = 0;
         std::cout << "first time imu stream received" << std::endl;
     }else{
-        m_imuMessage->lastSeq = m_imuMessage->seq;
+        imuMessage->lastSeq = m_lastSeqImu;
+
+        // sanity check on sequence
+        if (imuMessage->lastSeq == imuMessage->seq) {
+            std::cout << "error: duplicated imu message " << ecal_topic_name  << " detected: seq = " << imuMessage->lastSeq << ", skipping " << std::endl;
+            return;
+        }else if (imuMessage->lastSeq > imuMessage->seq) {
+            std::cout << "error: imu message " << ecal_topic_name << " sequence regression, from " << imuMessage->lastSeq << " to " << imuMessage->seq << ", skipping " << std::endl;
+            return;
+        }
     }
 
-    m_imuMessage->prefixed_topic = ecal_topic_name;
-    m_imuMessage->ts = header.getStamp();
-    m_imuMessage->seq = header.getSeq();
+    m_lastSeqImu = imuMessage->seq;
 
-    m_imuMessage->gyro = {
+    imuMessage->prefixed_topic = ecal_topic_name;
+    imuMessage->ts = header.getStamp();
+
+    imuMessage->gyro = {
         ecal_msg.getAngularVelocity().getX(),
         ecal_msg.getAngularVelocity().getY(),
         ecal_msg.getAngularVelocity().getZ()
     };
 
-    m_imuMessage->accel = {
+    imuMessage->accel = {
         ecal_msg.getLinearAcceleration().getX(),
         ecal_msg.getLinearAcceleration().getY(),
         ecal_msg.getLinearAcceleration().getZ()
@@ -351,54 +374,54 @@ void CameraInternal::imuCallbackInternal(const char* ecal_topic_name, ecal::Imu:
     bool updateIntrinsicCalibration = false;
     bool updateExtrinsicCalibration = false;
 
-    if (m_imuMessage->calib.lastModifiedIntrinsic != ecal_msg.getIntrinsic().getLastModified()) {
+    if (imuMessage->calib.lastModifiedIntrinsic != ecal_msg.getIntrinsic().getLastModified()) {
         updateIntrinsicCalibration = true;
     }
 
-    if (m_imuMessage->calib.lastModifiedExtrinsic != ecal_msg.getExtrinsic().getLastModified()) {
+    if (imuMessage->calib.lastModifiedExtrinsic != ecal_msg.getExtrinsic().getLastModified()) {
         updateExtrinsicCalibration = true;
     }
 
     // update imu intrinsic
     if (updateIntrinsicCalibration) {
-        m_imuMessage->calib.lastModifiedIntrinsic = ecal_msg.getIntrinsic().getLastModified();
-        std::cout << "received updated intrinsic for imu, ts = " << m_imuMessage->calib.lastModifiedExtrinsic << std::endl;
+        imuMessage->calib.lastModifiedIntrinsic = ecal_msg.getIntrinsic().getLastModified();
+        std::cout << "received updated intrinsic for imu, ts = " << imuMessage->calib.lastModifiedExtrinsic << std::endl;
 
         const auto& intrinsicMsg = ecal_msg.getIntrinsic();
 
-        m_imuMessage->calib.gyroNoiseStd = {
+        imuMessage->calib.gyroNoiseStd = {
             intrinsicMsg.getGyroNoiseStd().getX(),
             intrinsicMsg.getGyroNoiseStd().getY(),
             intrinsicMsg.getGyroNoiseStd().getZ()
         };
 
-        m_imuMessage->calib.accelNoiseStd = {
+        imuMessage->calib.accelNoiseStd = {
             intrinsicMsg.getAccelNoiseStd().getX(),
             intrinsicMsg.getAccelNoiseStd().getY(),
             intrinsicMsg.getAccelNoiseStd().getZ()
         };
 
-        m_imuMessage->calib.gyroBiasStd = {
+        imuMessage->calib.gyroBiasStd = {
             intrinsicMsg.getGyroBiasStd().getX(),
             intrinsicMsg.getGyroBiasStd().getY(),
             intrinsicMsg.getGyroBiasStd().getZ()
         };
 
-        m_imuMessage->calib.accelBiasStd = {
+        imuMessage->calib.accelBiasStd = {
             intrinsicMsg.getAccelBiasStd().getX(),
             intrinsicMsg.getAccelBiasStd().getY(),
             intrinsicMsg.getAccelBiasStd().getZ()
         };
 
-        m_imuMessage->calib.updateRate = intrinsicMsg.getUpdateRate();
-        m_imuMessage->calib.timeOffsetNs = intrinsicMsg.getTimeOffsetNs();
+        imuMessage->calib.updateRate = intrinsicMsg.getUpdateRate();
+        imuMessage->calib.timeOffsetNs = intrinsicMsg.getTimeOffsetNs();
 
     }
 
     // update imu extrinsic (body)
     if (updateExtrinsicCalibration) {
-        m_imuMessage->calib.lastModifiedExtrinsic = ecal_msg.getExtrinsic().getLastModified();
-        std::cout << "received updated extrinsic for imu, ts = " << m_imuMessage->calib.lastModifiedExtrinsic << std::endl;
+        imuMessage->calib.lastModifiedExtrinsic = ecal_msg.getExtrinsic().getLastModified();
+        std::cout << "received updated extrinsic for imu, ts = " << imuMessage->calib.lastModifiedExtrinsic << std::endl;
 
         const auto& extrinsicMsg = ecal_msg.getExtrinsic();
 
@@ -419,16 +442,16 @@ void CameraInternal::imuCallbackInternal(const char* ecal_topic_name, ecal::Imu:
 
             orientation.normalize();
 
-            m_imuMessage->calib.body_T_imu.linear() = orientation.toRotationMatrix();
-            m_imuMessage->calib.body_T_imu.translation() = position;
+            imuMessage->calib.body_T_imu.linear() = orientation.toRotationMatrix();
+            imuMessage->calib.body_T_imu.translation() = position;
 
-            std::cout << "body_T_imu: " << std::endl << m_imuMessage->calib.body_T_imu.affine() << std::endl;
+            std::cout << "body_T_imu: " << std::endl << imuMessage->calib.body_T_imu.affine() << std::endl;
 
         }
     }
 
     for (auto& callback : m_registeredImuCallbacks) {
-        callback(m_imuMessage);
+        callback(imuMessage);
     }
     
 
