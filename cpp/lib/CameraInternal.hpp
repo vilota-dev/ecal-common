@@ -38,7 +38,7 @@ class MessageSynchroniserExact {
         m_lastTsMap.resize(m_N);
         m_lastSeqMap.resize(m_N);
 
-        m_gottenFirstSync = false;
+        m_lastSyncTs = 0;
     }
 
     void addMessage(size_t idx, std::uint64_t ts, std::uint64_t seq, T msg) {
@@ -64,7 +64,7 @@ class MessageSynchroniserExact {
                 // it is ok to have failed the queue before first sync get done
                 if (m_queueMap[idx].size() % MAX_BUFFER_SIZE == 1) {
                     
-                    if ( m_gottenFirstSync ) {
+                    if ( m_lastSyncTs > 0 ) {
                         std::cout << name << ": too much message in the queue, sync msg is broken?" << std::endl;
                     }else{
                         std::cout << name << ": buffer full while no sync detected yet..." << std::endl;
@@ -128,12 +128,20 @@ class MessageSynchroniserExact {
 
         }else{
             // sync found, returning and popping
-            m_gottenFirstSync = true;
             ret.resize(m_N);
             for (size_t i = 0; i < m_N; i++) {
                 ret[i] = m_queueMap[i].front().second;
                 m_queueMap[i].pop();
             }
+
+            // sanity check
+            if (m_lastSyncTs >= minTs) {
+                std::cout << "error: synced message ts regression from " << m_lastSyncTs << " to " << minTs << ", skipping" << std::endl;
+                ret.clear();
+                return ret; // empty return
+            }
+
+            m_lastSyncTs = minTs; // equals to maxTs
             return ret;
         }
     }
@@ -146,7 +154,7 @@ class MessageSynchroniserExact {
     std::mutex m_mutexQueue;
     std::vector<std::uint64_t> m_lastTsMap;
     std::vector<std::uint64_t> m_lastSeqMap;
-    bool m_gottenFirstSync;
+    std::uint64_t m_lastSyncTs;
 
 };
 
