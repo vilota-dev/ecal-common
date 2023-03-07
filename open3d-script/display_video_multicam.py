@@ -25,11 +25,6 @@ from utils import SyncedImageSubscriber, image_resize
 
 isMacOS = (platform.system() == "Darwin")
 
-# store the meta data from ecal
-image_dict = {}
-# store the image used in gui display
-# rgb_frame_dict = {}
-
 
 class Recorder:
 
@@ -43,10 +38,11 @@ class VideoWindow:
 
     def __init__(self):
 
+        self.streaming_status = False
 
         # configure window
         self.window = gui.Application.instance.create_window(
-            "Open3D - Video", 4000, 800)
+            "Open3D - Video", 1400, 850)
         self.window.set_on_close(self._on_close)
 
         # configure menu
@@ -83,18 +79,38 @@ class VideoWindow:
         # configure gui
         em = self.window.theme.font_size
         margin = 0.5 * em
-        self.panel = gui.Horiz(0.5 * em, gui.Margins(margin))
+        self.panel_main = gui.Vert(0.5 * em, gui.Margins(margin))
 
-        self.rgb_widget_1 = gui.ImageWidget(o3d.geometry.Image(np.zeros((800,1280,1), dtype=np.uint8)))
-        self.rgb_widget_2 = gui.ImageWidget(o3d.geometry.Image(np.zeros((800,1280,1), dtype=np.uint8)))
-        self.rgb_widget_3 = gui.ImageWidget(o3d.geometry.Image(np.zeros((800,1280,1), dtype=np.uint8)))
+        self.panel_top = gui.Horiz(0.5 * em, gui.Margins(margin))
 
-        self.panel.add_child(self.rgb_widget_1)
-        self.panel.add_child(self.rgb_widget_2)
-        self.panel.add_child(self.rgb_widget_3)
-
-        self.window.add_child(self.panel)        
+        self.rgb_widget_1 = gui.ImageWidget(o3d.geometry.Image(np.zeros((400,640,1), dtype=np.uint8)))
+        self.rgb_widget_2 = gui.ImageWidget(o3d.geometry.Image(np.zeros((400,640,1), dtype=np.uint8)))
+        self.panel_top.add_child(self.rgb_widget_1)
+        self.panel_top.add_child(self.rgb_widget_2)
         
+        self.panel_main.add_child(self.panel_top) 
+
+        self.panel_bottom = gui.Horiz(0.5 * em, gui.Margins(margin))
+
+        collapse = gui.CollapsableVert("Widgets", 0.33 * em,
+                                       gui.Margins(em, 0, 0, 0))
+        self._label = gui.Label("control")
+        self._label.text_color = gui.Color(1.0, 0.5, 0.0)
+
+        collapse.add_child(self._label)
+        cb = gui.Checkbox("Start streaming")
+        cb.set_on_checked(self._on_cb)  # set the callback function
+        collapse.add_child(cb)
+        self.panel_bottom.add_child(collapse)
+        
+        self.rgb_widget_3 = gui.ImageWidget(o3d.geometry.Image(np.zeros((400,640,1), dtype=np.uint8)))
+        self.panel_bottom.add_child(self.rgb_widget_3)
+
+        self.panel_main.add_child(self.panel_bottom) 
+
+
+        self.window.add_child(self.panel_main) 
+
 
         # start image updating thread
         self.is_done = False
@@ -103,23 +119,9 @@ class VideoWindow:
     def _update_thread(self):
             # This is NOT the UI thread, need to call post_to_main_thread() to update
             # the scene or any part of the UI.
-
-            print("reset dict")
             rgb_frame_dict = {}
 
             while not self.is_done:
-                print("start while")
-                time.sleep(0.100)
-
-            # Get the next frame, for instance, reading a frame from the camera.
-                if (len(rgb_frame_dict) == 0):
-
-                    print(len(image_dict))
-
-                    
-
-                    
-
 
 
                 # Update the images. This must be done on the UI thread.
@@ -148,7 +150,11 @@ class VideoWindow:
     def _on_menu_quit(self):
         gui.Application.instance.quit()
 
-
+    def _on_cb(self, is_checked):
+        if is_checked:
+            self.streaming_status = True
+        else:
+            self.streaming_status = False
 
 
 
@@ -174,31 +180,68 @@ def read_img(window):
     while ecal_core.ok():
         # READ IN DATA
         ecal_images = recorder.image_sub.pop_sync_queue()
-
+        
         for imageName in ecal_images:
 
             imageMsg = ecal_images[imageName]
+
             img_ndarray = np.frombuffer(imageMsg.data, dtype=np.uint8)
             img_ndarray = img_ndarray.reshape((imageMsg.height, imageMsg.width, 1))
-            # print("raw shape = ",img_ndarray.shape)
-
-            # img_ndarray = image_resize(img_ndarray, width=640)
             
-            # dim = (640, 400,1)
-            # # resize image
-            # img_ndarray = cv2.resize(img_ndarray, dim, interpolation = cv2.INTER_NEAREST)
-            # print("after resize = ",img_ndarray.shape)
+            expTime_display = f"expTIme = {imageMsg.exposureUSec}"
+            sensIso_display = f"sensIso = {imageMsg.gain}"
+            latencyDevice_display = f"latency device = {imageMsg.header.latencyDevice / 1e6} ms"
+            latencyHost_display = f"latency host = {imageMsg.header.latencyHost / 1e6} ms"
+
+            img_ndarray = cv2.putText(img_ndarray, expTime_display, (100,100), cv2.FONT_HERSHEY_TRIPLEX, 1, (255,0,0), 2)
+            img_ndarray = cv2.putText(img_ndarray, sensIso_display, (100,140), cv2.FONT_HERSHEY_TRIPLEX, 1, (255,0,0), 2)
+            img_ndarray = cv2.putText(img_ndarray, latencyDevice_display, (100,180), cv2.FONT_HERSHEY_TRIPLEX, 1, (255,0,0), 2)    
+            img_ndarray = cv2.putText(img_ndarray, latencyHost_display, (100,220), cv2.FONT_HERSHEY_TRIPLEX, 1, (255,0,0), 2)    
+    
+            
+            # resize to smaller resolution
+            scale_percent = 40 # percent of original size
+            width = int(img_ndarray.shape[1] * scale_percent / 100)
+            height = int(img_ndarray.shape[0] * scale_percent / 100)
+            dim = (width, height)
+            
+            img_ndarray = cv2.resize(img_ndarray, dim, interpolation = cv2.INTER_NEAREST)
 
             #convert numpy array to 3 channel (800,1280,3)
-            img_ndarray = np.repeat(img_ndarray, 3, axis=2)
-            # print("after extend to 3 channels = ",img_ndarray.shape)
+            img_ndarray = np.repeat(img_ndarray.reshape(height, width, 1), 3, axis=2)
+            # print(f"size after repeat = {img_ndarray.shape}")
+            
 
-            # make sure img_ndarray (800,1280,3)
 
-            print("update rgb frame dict")
-            window.rgb_widget_1.update_image(o3d.geometry.Image(img_ndarray))
-            # rgb_frame_dict[imageName] = o3d.geometry.Image(img_ndarray)
+            #this part should be done in the GUI(main thread) not this thread
+            if window.streaming_status:
+                if(imageName == 'S0/camb'):
+                        window.rgb_widget_1.update_image(o3d.geometry.Image(img_ndarray))
+                    
+                if(imageName == 'S0/camc'):
+                    window.rgb_widget_2.update_image(o3d.geometry.Image(img_ndarray))
+                
+                if(imageName == 'S0/camd'):
+                    window.rgb_widget_3.update_image(o3d.geometry.Image(img_ndarray))
 
+
+            # display_image[imageName] = img_ndarray
+
+            # def update_frame(display_image):
+            #     print(f"I am calling to update {len(display_image)} cameras")
+            #     print(display_image.keys())
+            #     for imageName in display_image:
+            #         if(imageName == 'S0/camb'):
+            #             window.rgb_widget_1.update_image(o3d.geometry.Image(img_ndarray))
+                    
+            #         if(imageName == 'S0/camc'):
+            #             window.rgb_widget_2.update_image(o3d.geometry.Image(img_ndarray))
+                    
+            #         if(imageName == 'S0/camd'):
+            #             window.rgb_widget_3.update_image(o3d.geometry.Image(img_ndarray))
+            
+            # if not window.is_done:
+            #     gui.Application.instance.post_to_main_thread(window.window, update_frame(display_image))
 
 
     # finalize eCAL API
@@ -208,11 +251,7 @@ def read_img(window):
 
 
 
-
-
-
 def main(): 
-    
 
     app = gui.Application.instance
     app.initialize()
@@ -225,13 +264,9 @@ def main():
 
     time.sleep(3)
 
-
     app.run()
     
         
-
-
-
 
 
 if __name__ == "__main__":
