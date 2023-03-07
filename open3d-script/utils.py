@@ -5,7 +5,7 @@ import cv2
 import ecal.core.core as ecal_core
 from byte_subscriber import ByteSubscriber
 
-capnp.add_import_hook(['../thirdparty/ecal-common/src/capnp'])
+capnp.add_import_hook(['../src/capnp'])
 
 import image_capnp as eCALImage
 import imu_capnp as eCALImu
