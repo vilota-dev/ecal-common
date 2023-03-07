@@ -114,35 +114,7 @@ class VideoWindow:
 
         # start image updating thread
         self.is_done = False
-        # threading.Thread(target=self._update_thread).start()
 
-    def _update_thread(self):
-            # This is NOT the UI thread, need to call post_to_main_thread() to update
-            # the scene or any part of the UI.
-            rgb_frame_dict = {}
-
-            while not self.is_done:
-
-
-                # Update the images. This must be done on the UI thread.
-                def update():
-
-                    if ("S0/camb" in rgb_frame_dict):
-                        print("start")
-                        self.rgb_widget_1.update_image(rgb_frame_dict["S0/camb"])
-                        # self.rgb_widget_2.update_image(rgb_frame_dict["S0/camc"])
-                        # self.rgb_widget_3.update_image(rgb_frame_dict["S0/camd"])
-
-                        # suspecting race condition here
-                        # rgb_frame_dict = {}
-                        print("stop")
-
-                if not self.is_done:
-                    gui.Application.instance.post_to_main_thread(
-                        self.window, update)
-                    print("sent")
-    
-    
     def _on_close(self):
         self.is_done = True
         return True  # False would cancel the close
@@ -177,10 +149,21 @@ def read_img(window):
     recorder.image_sub.rolling = True   # ensure self.image_sub.pop_sync_queue() works
 
 
+    def update_frame(imageName,img_ndarray):
+        if(imageName == 'S0/camb'):
+            window.rgb_widget_1.update_image(o3d.geometry.Image(img_ndarray))
+        
+        if(imageName == 'S0/camc'):
+            window.rgb_widget_2.update_image(o3d.geometry.Image(img_ndarray))
+        
+        if(imageName == 'S0/camd'):
+            window.rgb_widget_3.update_image(o3d.geometry.Image(img_ndarray))
+
     while ecal_core.ok():
+        
         # READ IN DATA
         ecal_images = recorder.image_sub.pop_sync_queue()
-        
+        timestamp1 = time.monotonic()
         for imageName in ecal_images:
 
             imageMsg = ecal_images[imageName]
@@ -210,38 +193,13 @@ def read_img(window):
             #convert numpy array to 3 channel (800,1280,3)
             img_ndarray = np.repeat(img_ndarray.reshape(height, width, 1), 3, axis=2)
             # print(f"size after repeat = {img_ndarray.shape}")
-            
 
 
-            #this part should be done in the GUI(main thread) not this thread
-            if window.streaming_status:
-                if(imageName == 'S0/camb'):
-                        window.rgb_widget_1.update_image(o3d.geometry.Image(img_ndarray))
-                    
-                if(imageName == 'S0/camc'):
-                    window.rgb_widget_2.update_image(o3d.geometry.Image(img_ndarray))
-                
-                if(imageName == 'S0/camd'):
-                    window.rgb_widget_3.update_image(o3d.geometry.Image(img_ndarray))
+            if not window.is_done and window.streaming_status:
+                update_frame(imageName, img_ndarray)
+        
+        window.window.post_redraw()
 
-
-            # display_image[imageName] = img_ndarray
-
-            # def update_frame(display_image):
-            #     print(f"I am calling to update {len(display_image)} cameras")
-            #     print(display_image.keys())
-            #     for imageName in display_image:
-            #         if(imageName == 'S0/camb'):
-            #             window.rgb_widget_1.update_image(o3d.geometry.Image(img_ndarray))
-                    
-            #         if(imageName == 'S0/camc'):
-            #             window.rgb_widget_2.update_image(o3d.geometry.Image(img_ndarray))
-                    
-            #         if(imageName == 'S0/camd'):
-            #             window.rgb_widget_3.update_image(o3d.geometry.Image(img_ndarray))
-            
-            # if not window.is_done:
-            #     gui.Application.instance.post_to_main_thread(window.window, update_frame(display_image))
 
 
     # finalize eCAL API
