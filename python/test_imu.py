@@ -23,6 +23,8 @@ def callback(topic_name, msg, time):
     
     with eCALImu.Imu.from_bytes(msg) as imuMsg:
         print(f"seq = {imuMsg.header.seq}")
+        print(f"latency device = {imuMsg.header.latencyDevice / 1e6} ms")
+        print(f"latency host = {imuMsg.header.latencyHost / 1e6} ms")
         accel = np.array([imuMsg.linearAcceleration.x, imuMsg.linearAcceleration.y, imuMsg.linearAcceleration.z])
         gyro = np.array([imuMsg.angularVelocity.x, imuMsg.angularVelocity.y, imuMsg.angularVelocity.z])
         print(f"accel = {accel}")
