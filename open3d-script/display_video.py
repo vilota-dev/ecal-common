@@ -172,6 +172,14 @@ def callback(topic_name, msg, ts):
 
             mat = np.frombuffer(imageMsg.data, dtype=np.uint8)
             mat = mat.reshape((imageMsg.height, imageMsg.width, 1))
+            
+            expTime_display = str(imageMsg.exposureUSec)
+            sensIso_display = str(imageMsg.gain)
+
+            mat = cv2.putText(mat, "expTIme = " + expTime_display, (100,100), cv2.FONT_HERSHEY_TRIPLEX, 2, (255,0,0), 2)
+            mat = cv2.putText(mat, "sensIso = " + sensIso_display, (100,200), cv2.FONT_HERSHEY_TRIPLEX, 2, (255,0,0), 2)            
+            
+            
             imshow_map[topic_name + " mono8"] = mat
 
             # cv2.imshow("mono8", mat)
