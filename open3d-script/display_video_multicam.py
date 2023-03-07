@@ -28,7 +28,7 @@ isMacOS = (platform.system() == "Darwin")
 # store the meta data from ecal
 image_dict = {}
 # store the image used in gui display
-rgb_frame_dict = {}
+# rgb_frame_dict = {}
 
 
 class Recorder:
@@ -103,37 +103,41 @@ class VideoWindow:
     def _update_thread(self):
             # This is NOT the UI thread, need to call post_to_main_thread() to update
             # the scene or any part of the UI.
-            global image_dict
-            global rgb_frame_dict
-            while not self.is_done:
 
+            print("reset dict")
+
+            rgb_frame_dict = {}
+            while not self.is_done:
+                print("start while")
                 time.sleep(0.100)
 
             # Get the next frame, for instance, reading a frame from the camera.
-                # if (len(rgb_frame_dict) == 0):
+                if (len(rgb_frame_dict) == 0):
 
-                #     print(len(image_dict))
+                    print(len(image_dict))
 
-                #     for imageName in image_dict:
-                #         imageMsg = image_dict[imageName]
-                #         img_ndarray = np.frombuffer(imageMsg.data, dtype=np.uint8)
-                #         img_ndarray = img_ndarray.reshape((imageMsg.height, imageMsg.width, 1))
-                #         # print("raw shape = ",img_ndarray.shape)
+                    for imageName in image_dict:
+                        imageMsg = image_dict[imageName]
+                        img_ndarray = np.frombuffer(imageMsg.data, dtype=np.uint8)
+                        img_ndarray = img_ndarray.reshape((imageMsg.height, imageMsg.width, 1))
+                        # print("raw shape = ",img_ndarray.shape)
 
-                #         # img_ndarray = image_resize(img_ndarray, width=640)
+                        # img_ndarray = image_resize(img_ndarray, width=640)
                         
-                #         # dim = (640, 400,1)
-                #         # # resize image
-                #         # img_ndarray = cv2.resize(img_ndarray, dim, interpolation = cv2.INTER_NEAREST)
-                #         # print("after resize = ",img_ndarray.shape)
+                        # dim = (640, 400,1)
+                        # # resize image
+                        # img_ndarray = cv2.resize(img_ndarray, dim, interpolation = cv2.INTER_NEAREST)
+                        # print("after resize = ",img_ndarray.shape)
 
-                #         #convert numpy array to 3 channel (800,1280,3)
-                #         img_ndarray = np.repeat(img_ndarray, 3, axis=2)
-                #         # print("after extend to 3 channels = ",img_ndarray.shape)
+                        #convert numpy array to 3 channel (800,1280,3)
+                        img_ndarray = np.repeat(img_ndarray, 3, axis=2)
+                        # print("after extend to 3 channels = ",img_ndarray.shape)
 
-                #         # make sure img_ndarray (800,1280,3)
-                #         #convert numpy array to open3d image
-                #         rgb_frame_dict[imageName] = o3d.geometry.Image(img_ndarray)
+                        # make sure img_ndarray (800,1280,3)
+
+                        print("update rgb frame dict")
+                        rgb_frame_dict[imageName] = o3d.geometry.Image(img_ndarray)
+
                     
 
 
@@ -141,34 +145,20 @@ class VideoWindow:
                 # Update the images. This must be done on the UI thread.
                 def update():
 
-                    global image_dict
-                    global rgb_frame_dict
-
-                    if(len(rgb_frame_dict) == 0):
-                        print(len(image_dict))
-
-                        for imageName in image_dict:
-                            imageMsg = image_dict[imageName]
-                            img_ndarray = np.frombuffer(imageMsg.data, dtype=np.uint8)
-                            img_ndarray = img_ndarray.reshape((imageMsg.height, imageMsg.width, 1))
-
-                            img_ndarray = np.repeat(img_ndarray, 3, axis=2)
-
-                            # make sure img_ndarray (800,1280,3)
-                            #convert numpy array to open3d image
-                            rgb_frame_dict[imageName] = o3d.geometry.Image(img_ndarray)
-
-                        # print(type(rgb_frame_dict["S0/camd"]))
+                    if ("S0/camb" in rgb_frame_dict):
+                        print("start")
                         self.rgb_widget_1.update_image(rgb_frame_dict["S0/camb"])
-                        self.rgb_widget_2.update_image(rgb_frame_dict["S0/camc"])
-                        self.rgb_widget_3.update_image(rgb_frame_dict["S0/camd"])
+                        # self.rgb_widget_2.update_image(rgb_frame_dict["S0/camc"])
+                        # self.rgb_widget_3.update_image(rgb_frame_dict["S0/camd"])
 
                         # suspecting race condition here
-                        rgb_frame_dict = {}
+                        # rgb_frame_dict = {}
+                        print("stop")
 
                 if not self.is_done:
                     gui.Application.instance.post_to_main_thread(
                         self.window, update)
+                    print("sent")
     
     
     def _on_close(self):
@@ -184,7 +174,6 @@ class VideoWindow:
 
 def read_img():
 
-    global image_dict
 
     # PRINT ECAL VERSION AND DATE
     print("eCAL {} ({})\n".format(ecal_core.getversion(), ecal_core.getdate()))
