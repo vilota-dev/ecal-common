@@ -37,7 +37,15 @@ class VideoWindow:
 
     def __init__(self):
 
-        self.streaming_status = False
+        self.streaming_status_cama = False
+        self.streaming_status_camb = False
+        self.streaming_status_camc = False
+        self.streaming_status_camd = False
+
+        self.expTime_display_flag = False
+        self.sensIso_display_flag = False
+        self.latencyDevice_display_flag = False
+        self.latencyHost_display_flag = False
 
         # CONFIGURE WINDOW
         self.window = gui.Application.instance.create_window(
@@ -84,6 +92,48 @@ class VideoWindow:
         self.collapse = gui.CollapsableVert("Widgets", 0.33 * em,
                                        gui.Margins(em, 0, 0, 0))
         
+
+        self.label_camera_control = gui.Label("Streaming control")
+        self.label_camera_control.text_color = gui.Color(1.0, 0.5, 0.0)
+        self.collapse.add_child(self.label_camera_control)
+        
+        cb_cama = gui.Checkbox("Start streaming cama")
+        cb_cama.set_on_checked(self._on_cb_cama)  # set the callback function
+        self.collapse.add_child(cb_cama)
+
+        cb_camb = gui.Checkbox("Start streaming camb")
+        cb_camb.set_on_checked(self._on_cb_camb)  # set the callback function
+        self.collapse.add_child(cb_camb)
+
+        cb_camc = gui.Checkbox("Start streaming camc")
+        cb_camc.set_on_checked(self._on_cb_camc)  # set the callback function
+        self.collapse.add_child(cb_camc)
+
+        cb_camd = gui.Checkbox("Start streaming camd")
+        cb_camd.set_on_checked(self._on_cb_camd)  # set the callback function
+        self.collapse.add_child(cb_camd)
+        
+        self.label_display_control = gui.Label("Display control")
+        self.label_display_control.text_color = gui.Color(1.0, 0.5, 0.0)
+        self.collapse.add_child(self.label_display_control)
+
+        switch_expTime = gui.ToggleSwitch("Display expTime")
+        switch_expTime.set_on_clicked(self._on_switch_expTime)
+        # switch_expTime.set_on_clicked(self._on_switch(is_on = switch_expTime.is_on,flag = self.expTime_display_flag))
+        self.collapse.add_child(switch_expTime)
+        
+        switch_sensIso = gui.ToggleSwitch("Display sensIso")
+        switch_sensIso.set_on_clicked(self._on_switch_sensIso)
+        self.collapse.add_child(switch_sensIso)
+
+        switch_latencyDevice = gui.ToggleSwitch("Display latencyDevice")
+        switch_latencyDevice.set_on_clicked(self._on_switch_latencyDevice)
+        self.collapse.add_child(switch_latencyDevice)
+
+        switch_latencyHost = gui.ToggleSwitch("Display latencyHost")
+        switch_latencyHost.set_on_clicked(self._on_switch_latencyHost)
+        self.collapse.add_child(switch_latencyHost)
+
         self.proxy_1 = gui.WidgetProxy()
         self.collapse.add_child(self.proxy_1)
         
@@ -95,17 +145,10 @@ class VideoWindow:
 
         self.proxy_4 = gui.WidgetProxy()
         self.collapse.add_child(self.proxy_4)
-
-        self.label = gui.Label("control")
-        self.label.text_color = gui.Color(1.0, 0.5, 0.0)
-
-        self.collapse.add_child(self.label)
         
-        cb = gui.Checkbox("Start streaming")
-        cb.set_on_checked(self._on_cb)  # set the callback function
-        self.collapse.add_child(cb)
         self.window.add_child(self.collapse)
         
+
         # main panel
         self.panel_main = gui.Vert(0.5 * em, gui.Margins(margin))
 
@@ -122,8 +165,12 @@ class VideoWindow:
         self.rgb_widget_3 = gui.ImageWidget(o3d.geometry.Image(np.zeros((320,520,1), dtype=np.uint8)))
         self.rgb_widget_4 = gui.ImageWidget(o3d.geometry.Image(np.zeros((320,520,1), dtype=np.uint8)))
 
-        # self.proxy_5 = gui.WidgetProxy()
-        # self.rgb_widget_3.add_child(self.proxy_5)
+        self.proxy_5 = gui.WidgetProxy()
+        self.rgb_widget_4.add_child(self.proxy_5)
+
+        self.label_test = gui.Label("hhihihih")
+        self.rgb_widget_4.add_child(self.label_test)
+
         self.panel_bottom.add_child(self.rgb_widget_3)
         self.panel_bottom.add_child(self.rgb_widget_4)
         self.panel_main.add_child(self.panel_bottom) 
@@ -153,11 +200,59 @@ class VideoWindow:
     def _on_menu_quit(self):
         gui.Application.instance.quit()
 
-    def _on_cb(self, is_checked):
+    def _on_cb_cama(self, is_checked):
         if is_checked:
-            self.streaming_status = True
+            self.streaming_status_cama = True
         else:
-            self.streaming_status = False
+            self.streaming_status_cama = False
+    
+    def _on_cb_camb(self, is_checked):
+        if is_checked:
+            self.streaming_status_camb = True
+        else:
+            self.streaming_status_camb = False    
+    
+    def _on_cb_camc(self, is_checked):
+        if is_checked:
+            self.streaming_status_camc = True
+        else:
+            self.streaming_status_camc = False    
+    
+    def _on_cb_camd(self, is_checked):
+        if is_checked:
+            self.streaming_status_camd = True
+        else:
+            self.streaming_status_camd = False
+    
+    def _on_switch_expTime(self, is_on):
+        if is_on:
+            self.expTime_display_flag = True
+        else:
+            self.expTime_display_flag = False
+    
+    def _on_switch_sensIso(self, is_on):
+        if is_on:
+            self.sensIso_display_flag = True
+        else:
+            self.sensIso_display_flag = False
+    
+    def _on_switch_latencyDevice(self, is_on):
+        if is_on:
+            self.latencyDevice_display_flag = True
+        else:
+            self.latencyDevice_display_flag = False
+    
+    def _on_switch_latencyHost(self, is_on):
+        if is_on:
+            self.latencyHost_display_flag = True
+        else:
+            self.latencyHost_display_flag = False
+    
+    # def _on_switch(self, is_on, flag):
+    #     if is_on:
+    #         flag = True
+    #     else:
+    #         flag = False 
 
 
 
@@ -181,21 +276,21 @@ def read_img(window):
 
 
     def update_frame(imageName,img_ndarray):
-        if(imageName == 'S0/cama'):
+        if(imageName == 'S0/cama' and window.streaming_status_cama):
             window.rgb_widget_1.update_image(o3d.geometry.Image(img_ndarray))
 
-        if(imageName == 'S0/camb'):
+        if(imageName == 'S0/camb' and window.streaming_status_camb):
             window.rgb_widget_2.update_image(o3d.geometry.Image(img_ndarray))
         
-        if(imageName == 'S0/camc'):
+        if(imageName == 'S0/camc' and window.streaming_status_camc):
             window.rgb_widget_3.update_image(o3d.geometry.Image(img_ndarray))
         
-        if(imageName == 'S0/camd'):
+        if(imageName == 'S0/camd' and window.streaming_status_camd):
             window.rgb_widget_4.update_image(o3d.geometry.Image(img_ndarray))
 
     def update_proxy(proxy,display_msg):
         
-        label = gui.Label(display_msg + '\n')
+        label = gui.Label(display_msg)
         proxy.set_widget(label)
 
         window.window.set_needs_layout() 
@@ -216,10 +311,10 @@ def read_img(window):
             img_ndarray = np.frombuffer(imageMsg.data, dtype=np.uint8)
             img_ndarray = img_ndarray.reshape((imageMsg.height, imageMsg.width, 1))
             
-            expTime_display = f"expTime = {imageMsg.exposureUSec}"
-            sensIso_display = f"sensIso = {imageMsg.gain}"
-            latencyDevice_display = f"latency device = {imageMsg.header.latencyDevice / 1e6} ms"
-            latencyHost_display = f"latency host = {imageMsg.header.latencyHost / 1e6} ms"
+            expTime_display = f"expTime = {imageMsg.exposureUSec}" * window.expTime_display_flag
+            sensIso_display = f"sensIso = {imageMsg.gain}" * window.sensIso_display_flag
+            latencyDevice_display = f"latency device = {imageMsg.header.latencyDevice / 1e6} ms" * window.latencyDevice_display_flag
+            latencyHost_display = f"latency host = {imageMsg.header.latencyHost / 1e6} ms" * window.latencyHost_display_flag
 
             all_display = imageName + '\n' + expTime_display + '\n' + sensIso_display + '\n' + latencyDevice_display + '\n' + latencyHost_display 
 
@@ -240,17 +335,17 @@ def read_img(window):
             img_ndarray = np.repeat(img_ndarray.reshape(dim[1], dim[0], 1), 3, axis=2)
 
 
-            if not window.is_done and window.streaming_status:
+            if not window.is_done:
 
                 update_frame(imageName, img_ndarray)
 
-                if(imageName == 'S0/cama'):
+                if(imageName == 'S0/cama' and window.streaming_status_cama):
                     update_proxy(window.proxy_1,all_display)
-                if(imageName == 'S0/camb'):
+                if(imageName == 'S0/camb' and window.streaming_status_camb):
                     update_proxy(window.proxy_2,all_display)
-                if(imageName == 'S0/camc'):
+                if(imageName == 'S0/camc' and window.streaming_status_camc):
                     update_proxy(window.proxy_3,all_display)
-                if(imageName == 'S0/camd'):
+                if(imageName == 'S0/camd' and window.streaming_status_camd):
                     update_proxy(window.proxy_4,all_display)
                     # update_proxy(window.proxy_5, "hahahah")
         
