@@ -41,7 +41,8 @@ class VideoWindow:
 
         # CONFIGURE WINDOW
         self.window = gui.Application.instance.create_window(
-            "Open3D - Video", 1100, 850)
+            "Open3D - Video", 1300, 800)
+        self.window.set_on_layout(self._on_layout)
         self.window.set_on_close(self._on_close)
 
         # CONFIGURE MENU
@@ -79,46 +80,52 @@ class VideoWindow:
         em = self.window.theme.font_size
         margin = 0.5 * em
         
+        # side 
+        self.collapse = gui.CollapsableVert("Widgets", 0.33 * em,
+                                       gui.Margins(em, 0, 0, 0))
+        
+        self.proxy_1 = gui.WidgetProxy()
+        self.collapse.add_child(self.proxy_1)
+        
+        self.proxy_2 = gui.WidgetProxy()
+        self.collapse.add_child(self.proxy_2)
+
+        self.proxy_3 = gui.WidgetProxy()
+        self.collapse.add_child(self.proxy_3)
+
+        self.proxy_4 = gui.WidgetProxy()
+        self.collapse.add_child(self.proxy_4)
+
+        self.label = gui.Label("control")
+        self.label.text_color = gui.Color(1.0, 0.5, 0.0)
+
+        self.collapse.add_child(self.label)
+        
+        cb = gui.Checkbox("Start streaming")
+        cb.set_on_checked(self._on_cb)  # set the callback function
+        self.collapse.add_child(cb)
+        self.window.add_child(self.collapse)
+        
         # main panel
         self.panel_main = gui.Vert(0.5 * em, gui.Margins(margin))
 
         # top panel
         self.panel_top = gui.Horiz(0.5 * em, gui.Margins(margin))
-        self.rgb_widget_1 = gui.ImageWidget(o3d.geometry.Image(np.zeros((400,640,1), dtype=np.uint8)))
-        self.rgb_widget_2 = gui.ImageWidget(o3d.geometry.Image(np.zeros((400,640,1), dtype=np.uint8)))
+        self.rgb_widget_1 = gui.ImageWidget(o3d.geometry.Image(np.zeros((320,520,1), dtype=np.uint8)))
+        self.rgb_widget_2 = gui.ImageWidget(o3d.geometry.Image(np.zeros((320,520,1), dtype=np.uint8)))
         self.panel_top.add_child(self.rgb_widget_1)
         self.panel_top.add_child(self.rgb_widget_2)
         self.panel_main.add_child(self.panel_top) 
 
         # bottom panel
         self.panel_bottom = gui.Horiz(0.5 * em, gui.Margins(margin))
+        self.rgb_widget_3 = gui.ImageWidget(o3d.geometry.Image(np.zeros((320,520,1), dtype=np.uint8)))
+        self.rgb_widget_4 = gui.ImageWidget(o3d.geometry.Image(np.zeros((320,520,1), dtype=np.uint8)))
 
-        # side 
-        collapse = gui.CollapsableVert("Widgets", 0.33 * em,
-                                       gui.Margins(em, 0, 0, 0))
-        
-        self.proxy_1 = gui.WidgetProxy()
-        collapse.add_child(self.proxy_1)
-        
-        self.proxy_2 = gui.WidgetProxy()
-        collapse.add_child(self.proxy_2)
-
-        self.proxy_3 = gui.WidgetProxy()
-        collapse.add_child(self.proxy_3)
-
-        self.label = gui.Label("control")
-        self.label.text_color = gui.Color(1.0, 0.5, 0.0)
-
-        collapse.add_child(self.label)
-        
-        cb = gui.Checkbox("Start streaming")
-        cb.set_on_checked(self._on_cb)  # set the callback function
-        collapse.add_child(cb)
-        self.panel_bottom.add_child(collapse)
-        
-        self.rgb_widget_3 = gui.ImageWidget(o3d.geometry.Image(np.zeros((400,640,1), dtype=np.uint8)))
+        # self.proxy_5 = gui.WidgetProxy()
+        # self.rgb_widget_3.add_child(self.proxy_5)
         self.panel_bottom.add_child(self.rgb_widget_3)
-
+        self.panel_bottom.add_child(self.rgb_widget_4)
         self.panel_main.add_child(self.panel_bottom) 
 
 
@@ -127,6 +134,17 @@ class VideoWindow:
 
         # start image updating thread
         self.is_done = False
+
+    def _on_layout(self, layout_context):
+        contentRect = self.window.content_rect
+        panel_main_width = 1040
+        self.collapse.frame = gui.Rect(contentRect.x, contentRect.y,
+                                contentRect.width - panel_main_width,
+                                contentRect.height)
+
+        self.panel_main.frame = gui.Rect(self.collapse.frame.get_right(), contentRect.y,
+                                panel_main_width,
+                                contentRect.height)
 
     def _on_close(self):
         self.is_done = True
@@ -163,21 +181,25 @@ def read_img(window):
 
 
     def update_frame(imageName,img_ndarray):
-        if(imageName == 'S0/camb'):
+        if(imageName == 'S0/cama'):
             window.rgb_widget_1.update_image(o3d.geometry.Image(img_ndarray))
-        
-        if(imageName == 'S0/camc'):
+
+        if(imageName == 'S0/camb'):
             window.rgb_widget_2.update_image(o3d.geometry.Image(img_ndarray))
         
-        if(imageName == 'S0/camd'):
+        if(imageName == 'S0/camc'):
             window.rgb_widget_3.update_image(o3d.geometry.Image(img_ndarray))
+        
+        if(imageName == 'S0/camd'):
+            window.rgb_widget_4.update_image(o3d.geometry.Image(img_ndarray))
 
     def update_proxy(proxy,display_msg):
         
         label = gui.Label(display_msg + '\n')
         proxy.set_widget(label)
 
-        window.window.set_needs_layout()
+        window.window.set_needs_layout() 
+        
 
 
 
@@ -201,34 +223,36 @@ def read_img(window):
 
             all_display = imageName + '\n' + expTime_display + '\n' + sensIso_display + '\n' + latencyDevice_display + '\n' + latencyHost_display 
 
-            img_ndarray = cv2.putText(img_ndarray, expTime_display, (100,100), cv2.FONT_HERSHEY_TRIPLEX, 1, (255,0,0), 2)
-            img_ndarray = cv2.putText(img_ndarray, sensIso_display, (100,140), cv2.FONT_HERSHEY_TRIPLEX, 1, (255,0,0), 2)
-            img_ndarray = cv2.putText(img_ndarray, latencyDevice_display, (100,180), cv2.FONT_HERSHEY_TRIPLEX, 1, (255,0,0), 2)    
-            img_ndarray = cv2.putText(img_ndarray, latencyHost_display, (100,220), cv2.FONT_HERSHEY_TRIPLEX, 1, (255,0,0), 2)    
+            # img_ndarray = cv2.putText(img_ndarray, expTime_display, (100,100), cv2.FONT_HERSHEY_TRIPLEX, 1, (255,0,0), 2)
+            # img_ndarray = cv2.putText(img_ndarray, sensIso_display, (100,140), cv2.FONT_HERSHEY_TRIPLEX, 1, (255,0,0), 2)
+            # img_ndarray = cv2.putText(img_ndarray, latencyDevice_display, (100,180), cv2.FONT_HERSHEY_TRIPLEX, 1, (255,0,0), 2)    
+            # img_ndarray = cv2.putText(img_ndarray, latencyHost_display, (100,220), cv2.FONT_HERSHEY_TRIPLEX, 1, (255,0,0), 2)    
             
             # resize to smaller resolution
-            scale_percent = 40 # percent of original size
-            width = int(img_ndarray.shape[1] * scale_percent / 100)
-            height = int(img_ndarray.shape[0] * scale_percent / 100)
-            dim = (width, height)
+            # scale_percent = 40 # percent of original size
+            # width = int(img_ndarray.shape[1] * scale_percent / 100)
+            # height = int(img_ndarray.shape[0] * scale_percent / 100)
             
+            dim = (512, 320) #width height
             img_ndarray = cv2.resize(img_ndarray, dim, interpolation = cv2.INTER_NEAREST)
 
-            #convert numpy array to 3 channel (800,1280,3)
-            img_ndarray = np.repeat(img_ndarray.reshape(height, width, 1), 3, axis=2)
-            # print(f"size after repeat = {img_ndarray.shape}")
+            #convert numpy array to 3 channel
+            img_ndarray = np.repeat(img_ndarray.reshape(dim[1], dim[0], 1), 3, axis=2)
 
 
             if not window.is_done and window.streaming_status:
 
                 update_frame(imageName, img_ndarray)
 
-                if(imageName == 'S0/camb'):
+                if(imageName == 'S0/cama'):
                     update_proxy(window.proxy_1,all_display)
-                if(imageName == 'S0/camc'):
+                if(imageName == 'S0/camb'):
                     update_proxy(window.proxy_2,all_display)
-                if(imageName == 'S0/camd'):
+                if(imageName == 'S0/camc'):
                     update_proxy(window.proxy_3,all_display)
+                if(imageName == 'S0/camd'):
+                    update_proxy(window.proxy_4,all_display)
+                    # update_proxy(window.proxy_5, "hahahah")
         
         window.window.post_redraw()
 
@@ -252,6 +276,7 @@ def main():
     time.sleep(3)
 
     app.run()
+    print("hahah")
     
         
 
