@@ -24,6 +24,7 @@ from utils import SyncedImageSubscriber
 
 isMacOS = (platform.system() == "Darwin")
 
+image_topics = []
 
 class Recorder:
 
@@ -31,11 +32,139 @@ class Recorder:
 
         self.image_sub = SyncedImageSubscriber(image_topics)
 
+class ChooseWindow:
+
+    def __init__(self):
+        
+        self.is_done = False
+        
+        self.status_cama = False
+        self.status_camb = False
+        self.status_camc = False
+        self.status_camd = False
+        
+        # CONFIGURE WINDOW
+        self.window = gui.Application.instance.create_window(
+            "Camera confirm", 500, 300)
+        self.window.set_on_layout(self._on_layout)
+        self.window.set_on_close(self._on_close) 
+        
+        
+        # CONFIGURE GUI
+        em = self.window.theme.font_size
+        margin = 0.5 * em
+        
+        self.panel_main = gui.Vert(0.5 * em, gui.Margins(margin))
+
+        self.label_description = gui.Label("Please choose the avaliable camera and click 'Ok'.")
+        self.label_description.text_color = gui.Color(1.0, 0.5, 0.0)
+        self.panel_main.add_child(self.label_description)
+
+        cb_cama = gui.Checkbox("cam_a")
+        cb_cama.set_on_checked(self._on_cb_cama)  # set the callback function
+        self.panel_main.add_child(cb_cama)
+
+        cb_camb = gui.Checkbox("cam_b")
+        cb_camb.set_on_checked(self._on_cb_camb)  
+        self.panel_main.add_child(cb_camb)
+
+        cb_camc = gui.Checkbox("cam_c")
+        cb_camc.set_on_checked(self._on_cb_camc)  
+        self.panel_main.add_child(cb_camc)
+
+        cb_camd = gui.Checkbox("cam_d")
+        cb_camd.set_on_checked(self._on_cb_camd)  
+        self.panel_main.add_child(cb_camd)
+        
+        self.window.add_child(self.panel_main) 
+
+
+        self.button_layout = gui.Horiz(0.5 * em, gui.Margins(margin))
+        self.button_layout.add_stretch()
+
+        self.ok_button = gui.Button("Ok")
+        self.ok_button.set_on_clicked(self._on_ok)
+        self.button_layout.add_child(self.ok_button)
+        
+        self.window.add_child(self.button_layout) 
+        
+
+
+
+    def _on_layout(self, layout_context):
+        contentRect = self.window.content_rect
+
+        self.panel_main.frame = gui.Rect(contentRect.x, 
+                                contentRect.y,
+                                contentRect.width ,
+                                contentRect.height - 50)
+        print(self.panel_main.frame)
+        self.button_layout.frame = gui.Rect(contentRect.x,
+                                self.panel_main.frame.get_bottom(),
+                                contentRect.width,
+                                50)
+        self.ok_button.frame = gui.Rect(contentRect.width - 100,
+                                self.button_layout.frame.get_top(),
+                                80,
+                                40)
+
+        print(self.button_layout.frame)
+        print(self.ok_button.frame)
+
+
+    def _on_close(self):
+        self.is_done = True
+        return True  # False would cancel the close
+
+
+    def _on_cb_cama(self, is_checked):
+        if is_checked:
+            self.status_cama = True
+        else:
+            self.status_cama = False
+    
+    def _on_cb_camb(self, is_checked):
+        if is_checked:
+            self.status_camb = True
+        else:
+            self.status_camb = False    
+    
+    def _on_cb_camc(self, is_checked):
+        if is_checked:
+            self.status_camc = True
+        else:
+            self.status_camc = False    
+    
+    def _on_cb_camd(self, is_checked):
+        if is_checked:
+            self.status_camd = True
+        else:
+            self.status_camd = False
+    
+    def _on_ok(self):
+
+        if self.status_cama:
+            image_topics.append("S0/cama")
+        if self.status_camb:
+            image_topics.append("S0/camb")        
+        if self.status_camc:
+            image_topics.append("S0/camc")        
+        if self.status_camd:
+            image_topics.append("S0/camd")
+        
+        print(f"Subscribing to {image_topics}")
+
+        gui.Application.instance.quit()
+
+
+
 
 class VideoWindow:
     MENU_QUIT = 1
 
     def __init__(self):
+                
+        self.is_done = False
 
         self.streaming_status_cama = False
         self.streaming_status_camb = False
@@ -49,7 +178,7 @@ class VideoWindow:
 
         # CONFIGURE WINDOW
         self.window = gui.Application.instance.create_window(
-            "Open3D - Video", 1300, 800)
+            "Video", 1300, 800)
         self.window.set_on_layout(self._on_layout)
         self.window.set_on_close(self._on_close)
 
@@ -165,11 +294,8 @@ class VideoWindow:
         self.rgb_widget_3 = gui.ImageWidget(o3d.geometry.Image(np.zeros((320,520,1), dtype=np.uint8)))
         self.rgb_widget_4 = gui.ImageWidget(o3d.geometry.Image(np.zeros((320,520,1), dtype=np.uint8)))
 
-        self.proxy_5 = gui.WidgetProxy()
-        self.rgb_widget_4.add_child(self.proxy_5)
-
-        self.label_test = gui.Label("hhihihih")
-        self.rgb_widget_4.add_child(self.label_test)
+        self.proxy_testing = gui.WidgetProxy()
+        self.rgb_widget_4.add_child(self.proxy_testing)
 
         self.panel_bottom.add_child(self.rgb_widget_3)
         self.panel_bottom.add_child(self.rgb_widget_4)
@@ -179,17 +305,17 @@ class VideoWindow:
         self.window.add_child(self.panel_main) 
 
 
-        # start image updating thread
-        self.is_done = False
 
     def _on_layout(self, layout_context):
         contentRect = self.window.content_rect
         panel_main_width = 1040
-        self.collapse.frame = gui.Rect(contentRect.x, contentRect.y,
+        self.collapse.frame = gui.Rect(contentRect.x, 
+                                contentRect.y,
                                 contentRect.width - panel_main_width,
                                 contentRect.height)
 
-        self.panel_main.frame = gui.Rect(self.collapse.frame.get_right(), contentRect.y,
+        self.panel_main.frame = gui.Rect(self.collapse.frame.get_right(), 
+                                contentRect.y,
                                 panel_main_width,
                                 contentRect.height)
 
@@ -268,12 +394,15 @@ def read_img(window):
     # SET PROCESS STATE
     ecal_core.set_process_state(1, 1, "I feel good")
 
-    # SET UP SUBSCRIBER
-    image_topics = ["S0/camb","S0/camc","S0/camd"]
     
+    # check image topic and update image topic
+
+    # print(type(ecal_core.mon_monitoring()[1]))
+
     recorder = Recorder(image_topics)
     recorder.image_sub.rolling = True   # ensure self.image_sub.pop_sync_queue() works
 
+    # print(ecal_core.mon_monitoring())
 
     def update_frame(imageName,img_ndarray):
         if(imageName == 'S0/cama' and window.streaming_status_cama):
@@ -287,11 +416,25 @@ def read_img(window):
         
         if(imageName == 'S0/camd' and window.streaming_status_camd):
             window.rgb_widget_4.update_image(o3d.geometry.Image(img_ndarray))
+    
 
     def update_proxy(proxy,display_msg):
         
-        label = gui.Label(display_msg)
-        proxy.set_widget(label)
+        widget = proxy.get_widget()
+       
+
+        if widget is None:
+            label = gui.Label(display_msg)
+            proxy.set_widget(label)
+        else:
+            widget.text = display_msg
+            # if proxy == window.proxy_testing:
+            #     print("I am updating proxy testing")
+            #     print(f"the children of rgb widget 4 is {window.rgb_widget_4.get_children()}")
+            # else:
+            #     print("I am updating the panel")
+            #     print(f"proxy is {proxy}")
+
 
         window.window.set_needs_layout() 
         
@@ -338,7 +481,6 @@ def read_img(window):
             if not window.is_done:
 
                 update_frame(imageName, img_ndarray)
-
                 if(imageName == 'S0/cama' and window.streaming_status_cama):
                     update_proxy(window.proxy_1,all_display)
                 if(imageName == 'S0/camb' and window.streaming_status_camb):
@@ -347,7 +489,7 @@ def read_img(window):
                     update_proxy(window.proxy_3,all_display)
                 if(imageName == 'S0/camd' and window.streaming_status_camd):
                     update_proxy(window.proxy_4,all_display)
-                    # update_proxy(window.proxy_5, "hahahah")
+                    update_proxy(window.proxy_testing, all_display)
         
         window.window.post_redraw()
 
@@ -358,20 +500,28 @@ def read_img(window):
 
 
 def main(): 
+    
+    # choose camera app
+    choose_app = gui.Application.instance
+    choose_app.initialize()
 
+    choose_win = ChooseWindow()
+    
+    choose_app.run()    
+
+    # main app
     app = gui.Application.instance
     app.initialize()
-
+    
     win = VideoWindow()
-
-    # NEW THREAD FOR IMAGE READING
+    
+    # NEW THREAD FOR IMAGE READING    
     img_reading_thread= threading.Thread(target=read_img,args=(win,))
     img_reading_thread.start()
-
+    
     time.sleep(3)
-
+    
     app.run()
-    print("hahah")
     
         
 
