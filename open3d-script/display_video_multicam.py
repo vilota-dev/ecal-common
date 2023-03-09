@@ -98,15 +98,11 @@ class ChooseWindow:
                                 contentRect.y,
                                 contentRect.width ,
                                 contentRect.height - 50)
-        print(self.panel_main.frame)
         self.button_layout.frame = gui.Rect(contentRect.x,
                                 self.panel_main.frame.get_bottom(),
                                 contentRect.width,
                                 50)
-        self.ok_button.frame = gui.Rect(contentRect.width - 100,
-                                self.button_layout.frame.get_top(),
-                                80,
-                                40)
+
 
 
 
@@ -246,7 +242,6 @@ class VideoWindow:
 
         switch_expTime = gui.ToggleSwitch("Display expTime")
         switch_expTime.set_on_clicked(self._on_switch_expTime)
-        # switch_expTime.set_on_clicked(self._on_switch(is_on = switch_expTime.is_on,flag = self.expTime_display_flag))
         self.collapse.add_child(switch_expTime)
         
         switch_sensIso = gui.ToggleSwitch("Display sensIso")
@@ -371,11 +366,7 @@ class VideoWindow:
         else:
             self.latencyHost_display_flag = False
     
-    # def _on_switch(self, is_on, flag):
-    #     if is_on:
-    #         flag = True
-    #     else:
-    #         flag = False 
+
 
 
 
@@ -465,7 +456,8 @@ def read_img(window):
             expTime_display = f"expTime = {imageMsg.exposureUSec}" 
             sensIso_display = f"sensIso = {imageMsg.gain}" 
             latencyDevice_display = f"device latency = {imageMsg.header.latencyDevice / 1e6 :.2f} ms" 
-            latencyHost_display = f"host latency = {imageMsg.header.latencyHost / 1e6 :.2f} ms" 
+            host_latency = time.monotonic() *1e9 - imageMsg.header.stamp 
+            latencyHost_display = f"host latency = {host_latency / 1e6 :.2f} ms" 
 
             all_display = imageName + '\n' + expTime_display + '\n' + sensIso_display + '\n' + latencyDevice_display + '\n' + latencyHost_display 
 
