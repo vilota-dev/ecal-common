@@ -108,8 +108,6 @@ class ChooseWindow:
                                 80,
                                 40)
 
-        print(self.button_layout.frame)
-        print(self.ok_button.frame)
 
 
     def _on_close(self):
@@ -263,6 +261,10 @@ class VideoWindow:
         switch_latencyHost.set_on_clicked(self._on_switch_latencyHost)
         self.collapse.add_child(switch_latencyHost)
 
+        self.label_info = gui.Label("Information")
+        self.label_info.text_color = gui.Color(1.0, 0.5, 0.0)
+        self.collapse.add_child(self.label_info)
+
         self.proxy_1 = gui.WidgetProxy()
         self.collapse.add_child(self.proxy_1)
         
@@ -293,14 +295,9 @@ class VideoWindow:
         self.panel_bottom = gui.Horiz(0.5 * em, gui.Margins(margin))
         self.rgb_widget_3 = gui.ImageWidget(o3d.geometry.Image(np.zeros((320,520,1), dtype=np.uint8)))
         self.rgb_widget_4 = gui.ImageWidget(o3d.geometry.Image(np.zeros((320,520,1), dtype=np.uint8)))
-
-        self.proxy_testing = gui.WidgetProxy()
-        self.rgb_widget_4.add_child(self.proxy_testing)
-
         self.panel_bottom.add_child(self.rgb_widget_3)
         self.panel_bottom.add_child(self.rgb_widget_4)
         self.panel_main.add_child(self.panel_bottom) 
-
 
         self.window.add_child(self.panel_main) 
 
@@ -318,7 +315,7 @@ class VideoWindow:
                                 contentRect.y,
                                 panel_main_width,
                                 contentRect.height)
-
+        
     def _on_close(self):
         self.is_done = True
         return True  # False would cancel the close
@@ -394,9 +391,6 @@ def read_img(window):
     # SET PROCESS STATE
     ecal_core.set_process_state(1, 1, "I feel good")
 
-    
-    # check image topic and update image topic
-
     # print(type(ecal_core.mon_monitoring()[1]))
 
     recorder = Recorder(image_topics)
@@ -416,31 +410,45 @@ def read_img(window):
         
         if(imageName == 'S0/camd' and window.streaming_status_camd):
             window.rgb_widget_4.update_image(o3d.geometry.Image(img_ndarray))
-    
+
 
     def update_proxy(proxy,display_msg):
         
         widget = proxy.get_widget()
        
-
         if widget is None:
             label = gui.Label(display_msg)
             proxy.set_widget(label)
         else:
             widget.text = display_msg
-            # if proxy == window.proxy_testing:
-            #     print("I am updating proxy testing")
-            #     print(f"the children of rgb widget 4 is {window.rgb_widget_4.get_children()}")
-            # else:
-            #     print("I am updating the panel")
-            #     print(f"proxy is {proxy}")
-
 
         window.window.set_needs_layout() 
         
 
+    expMin = 1
+    expMax = 33000
+    sensMin = 100
+    sensMax = 1600
+    
+    progress_bar_length = 200
+    progress_bar_height = 20
+    
+    left_x = 10
+    
+    left_y_pb1 = 30
+    spacing_2pb = 30
+    left_y_pb2 = left_y_pb1 + progress_bar_height + spacing_2pb
 
+    expTime_frame_start = (left_x, left_y_pb1)
+    expTime_frame_end = (left_x + progress_bar_length, left_y_pb1 + progress_bar_height)
+    
+    sensIso_frame_start = (left_x,left_y_pb2)
+    sensIso_frame_end = (left_x + progress_bar_length, left_y_pb2 + progress_bar_height)
 
+    spacing_pb_text = 40
+    spacing_2text = 20
+    latencyDevice_coor = (left_x, left_y_pb2 + progress_bar_height + spacing_pb_text)
+    latencyHost_coor = (left_x, left_y_pb2 + progress_bar_height + spacing_pb_text + spacing_2text)
 
     while ecal_core.ok():
 
@@ -454,18 +462,13 @@ def read_img(window):
             img_ndarray = np.frombuffer(imageMsg.data, dtype=np.uint8)
             img_ndarray = img_ndarray.reshape((imageMsg.height, imageMsg.width, 1))
             
-            expTime_display = f"expTime = {imageMsg.exposureUSec}" * window.expTime_display_flag
-            sensIso_display = f"sensIso = {imageMsg.gain}" * window.sensIso_display_flag
-            latencyDevice_display = f"latency device = {imageMsg.header.latencyDevice / 1e6} ms" * window.latencyDevice_display_flag
-            latencyHost_display = f"latency host = {imageMsg.header.latencyHost / 1e6} ms" * window.latencyHost_display_flag
+            expTime_display = f"expTime = {imageMsg.exposureUSec}" 
+            sensIso_display = f"sensIso = {imageMsg.gain}" 
+            latencyDevice_display = f"device latency = {imageMsg.header.latencyDevice / 1e6 :.2f} ms" 
+            latencyHost_display = f"host latency = {imageMsg.header.latencyHost / 1e6 :.2f} ms" 
 
             all_display = imageName + '\n' + expTime_display + '\n' + sensIso_display + '\n' + latencyDevice_display + '\n' + latencyHost_display 
 
-            # img_ndarray = cv2.putText(img_ndarray, expTime_display, (100,100), cv2.FONT_HERSHEY_TRIPLEX, 1, (255,0,0), 2)
-            # img_ndarray = cv2.putText(img_ndarray, sensIso_display, (100,140), cv2.FONT_HERSHEY_TRIPLEX, 1, (255,0,0), 2)
-            # img_ndarray = cv2.putText(img_ndarray, latencyDevice_display, (100,180), cv2.FONT_HERSHEY_TRIPLEX, 1, (255,0,0), 2)    
-            # img_ndarray = cv2.putText(img_ndarray, latencyHost_display, (100,220), cv2.FONT_HERSHEY_TRIPLEX, 1, (255,0,0), 2)    
-            
             # resize to smaller resolution
             # scale_percent = 40 # percent of original size
             # width = int(img_ndarray.shape[1] * scale_percent / 100)
@@ -476,6 +479,37 @@ def read_img(window):
 
             #convert numpy array to 3 channel
             img_ndarray = np.repeat(img_ndarray.reshape(dim[1], dim[0], 1), 3, axis=2)
+
+
+            if window.expTime_display_flag:
+                # add progress bar
+                expTime_length = int((imageMsg.exposureUSec - expMin) / (expMax - expMin) * progress_bar_length)
+                img_ndarray = cv2.rectangle(img_ndarray, expTime_frame_start, (left_x + expTime_length, expTime_frame_end[1]), (255, 0, 0),-1)
+                # add progress bar frame
+                img_ndarray = cv2.rectangle(img_ndarray, expTime_frame_start, expTime_frame_end, (255, 255, 255),2)
+                # add description
+                img_ndarray = cv2.putText(img_ndarray, 'expTime', (expTime_frame_end[0]+5, expTime_frame_start[1]), cv2.FONT_HERSHEY_TRIPLEX, 0.5, (255, 0, 0), 1)
+                img_ndarray = cv2.putText(img_ndarray, str(expMin), (expTime_frame_start[0],expTime_frame_end[1]+15), cv2.FONT_HERSHEY_TRIPLEX, 0.4, (255, 255, 255), 1)    
+                img_ndarray = cv2.putText(img_ndarray, str(expMax), (expTime_frame_end[0],expTime_frame_end[1]+15), cv2.FONT_HERSHEY_TRIPLEX, 0.4, (255, 255, 255), 1)    
+
+            if window.sensIso_display_flag:
+                # add progress bar
+                sensIso_length = int((imageMsg.gain - sensMin) / (sensMax - sensMin) * progress_bar_length)
+                img_ndarray = cv2.rectangle(img_ndarray, sensIso_frame_start, (left_x +sensIso_length, sensIso_frame_end[1]), (0, 0, 255),-1)
+                # add progress bar frame
+                img_ndarray = cv2.rectangle(img_ndarray, sensIso_frame_start, sensIso_frame_end, (255, 255, 255),2)
+                # add description
+                img_ndarray = cv2.putText(img_ndarray, 'sensIso', (sensIso_frame_end[0]+5, sensIso_frame_start[1]), cv2.FONT_HERSHEY_TRIPLEX, 0.5, (0, 0, 255), 1)    
+                img_ndarray = cv2.putText(img_ndarray, str(sensMin), (sensIso_frame_start[0],sensIso_frame_end[1]+15), cv2.FONT_HERSHEY_TRIPLEX, 0.4, (255, 255, 255), 1)    
+                img_ndarray = cv2.putText(img_ndarray, str(sensMax), (sensIso_frame_end[0],sensIso_frame_end[1]+15), cv2.FONT_HERSHEY_TRIPLEX, 0.4, (255, 255, 255), 1)    
+
+
+            # add latency text
+            if window.latencyDevice_display_flag:
+                img_ndarray = cv2.putText(img_ndarray, latencyDevice_display, latencyDevice_coor, cv2.FONT_HERSHEY_TRIPLEX, 0.5, (127, 0, 255), 1)  
+            
+            if window.latencyHost_display_flag:
+                img_ndarray = cv2.putText(img_ndarray, latencyHost_display, latencyHost_coor, cv2.FONT_HERSHEY_TRIPLEX, 0.5, (127, 0, 255), 1)    
 
 
             if not window.is_done:
@@ -489,7 +523,6 @@ def read_img(window):
                     update_proxy(window.proxy_3,all_display)
                 if(imageName == 'S0/camd' and window.streaming_status_camd):
                     update_proxy(window.proxy_4,all_display)
-                    update_proxy(window.proxy_testing, all_display)
         
         window.window.post_redraw()
 
