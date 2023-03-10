@@ -416,9 +416,9 @@ def read_img(window):
         window.window.set_needs_layout() 
         
 
-    expMin = 500
+    expMin = 10
     expMax = 12000
-    sensMin = 110
+    sensMin = 100
     sensMax = 800
     
     progress_bar_length = 200
