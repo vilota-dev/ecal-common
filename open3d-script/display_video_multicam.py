@@ -416,13 +416,13 @@ def read_img(window):
         window.window.set_needs_layout() 
         
 
-    expMin = 1
-    expMax = 33000
-    sensMin = 100
-    sensMax = 1600
+    expMin = 500
+    expMax = 12000
+    sensMin = 110
+    sensMax = 800
     
     progress_bar_length = 200
-    progress_bar_height = 20
+    progress_bar_height = 15
     
     left_x = 10
     
