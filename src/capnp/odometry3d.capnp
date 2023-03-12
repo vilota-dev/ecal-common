@@ -16,8 +16,9 @@ struct Odometry3d {
     }
 
     enum ReferenceFrame {
-        enu @0; # typically with global reference
-        nwu @1; # typically with local reference
+        enu @0; # typically with global reference, map frame of ROS
+        nwu @1; # typically with local reference, odom frame of ROS
+        ned @2; # typically with MAV
     }
 
     enum VelocityFrame {
