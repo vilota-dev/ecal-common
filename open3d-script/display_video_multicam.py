@@ -2,6 +2,7 @@
 
 import sys
 import time
+from time import monotonic
 import threading
 
 import capnp
@@ -10,9 +11,12 @@ import cv2
 import platform
 
 import ecal.core.core as ecal_core
+from byte_subscriber import ByteSubscriber
+
 
 capnp.add_import_hook(['../src/capnp'])
 
+import odometry3d_capnp as eCALOdometry3d
 import image_capnp as eCALImage
 import cameracontrol_capnp as eCALCameraControl
 import open3d as o3d
@@ -25,6 +29,8 @@ from utils import SyncedImageSubscriber
 isMacOS = (platform.system() == "Darwin")
 
 image_topics = []
+
+vio = False
 
 class Recorder:
 
@@ -42,7 +48,8 @@ class ChooseWindow:
         self.status_camb = False
         self.status_camc = False
         self.status_camd = False
-        
+        self.status_vio = False
+
         # CONFIGURE WINDOW
         self.window = gui.Application.instance.create_window(
             "Camera confirm", 500, 300)
@@ -75,6 +82,10 @@ class ChooseWindow:
         cb_camd = gui.Checkbox("cam_d")
         cb_camd.set_on_checked(self._on_cb_camd)  
         self.panel_main.add_child(cb_camd)
+
+        cb_vio = gui.Checkbox("vio is on")
+        cb_vio.set_on_checked(self._on_cb_vio)  
+        self.panel_main.add_child(cb_vio)
         
         self.window.add_child(self.panel_main) 
 
@@ -135,6 +146,12 @@ class ChooseWindow:
         else:
             self.status_camd = False
     
+    def _on_cb_vio(self, is_checked):
+        if is_checked:
+            self.status_vio = True
+        else:
+            self.status_vio = False
+    
     def _on_ok(self):
 
         if self.status_cama:
@@ -145,6 +162,8 @@ class ChooseWindow:
             image_topics.append("S0/camc")        
         if self.status_camd:
             image_topics.append("S0/camd")
+        if self.status_vio:
+            vio = True
         
         print(f"Subscribing to {image_topics}")
 
@@ -256,7 +275,14 @@ class VideoWindow:
         switch_latencyHost.set_on_clicked(self._on_switch_latencyHost)
         self.collapse.add_child(switch_latencyHost)
 
-        self.label_info = gui.Label("Information")
+        self.label_info = gui.Label("Vio Information")
+        self.label_info.text_color = gui.Color(1.0, 0.5, 0.0)
+        self.collapse.add_child(self.label_info)
+
+        self.proxy_vio = gui.WidgetProxy()
+        self.collapse.add_child(self.proxy_vio)
+
+        self.label_info = gui.Label("Camera Information")
         self.label_info.text_color = gui.Color(1.0, 0.5, 0.0)
         self.collapse.add_child(self.label_info)
 
@@ -368,6 +394,7 @@ class VideoWindow:
     
 
 
+vio_msg = ""
 
 
 def read_img(window):
@@ -383,6 +410,38 @@ def read_img(window):
     ecal_core.set_process_state(1, 1, "I feel good")
 
     # print(type(ecal_core.mon_monitoring()[1]))
+
+    
+
+    def vio_callback(topic_name, msg, time):
+
+        global vio_msg
+        # need to remove the .decode() function within the Python API of ecal.core.subscriber ByteSubscriber
+        
+        with eCALOdometry3d.Odometry3d.from_bytes(msg) as odometryMsg:
+
+
+            # if first_message:
+            #     print(f"bodyFrame = {odometryMsg.bodyFrame}")
+            #     print(f"referenceFrame = {odometryMsg.referenceFrame}")
+            #     print(f"velocityFrame = {odometryMsg.velocityFrame}")
+            #     first_message = False
+
+            position_msg = f"position: \n {odometryMsg.pose.position.x:.4f}, {odometryMsg.pose.position.y:.4f}, {odometryMsg.pose.position.z:.4f}"
+            orientation_msg = f"orientation: \n  {odometryMsg.pose.orientation.w:.4f}, {odometryMsg.pose.orientation.x:.4f}, {odometryMsg.pose.orientation.y:.4f}, {odometryMsg.pose.orientation.z:.4f}"
+            
+
+            device_latency_msg = f"device latency = {odometryMsg.header.latencyDevice / 1e6 : .2f} ms"
+            
+            vio_host_latency = monotonic() *1e9 - odometryMsg.header.stamp 
+            host_latency_msg = f"host latency = {vio_host_latency / 1e6 :.2f} ms"
+            
+            vio_msg = position_msg + "\n" + orientation_msg + "\n" + device_latency_msg + "\n" + host_latency_msg
+
+    
+    vio_sub = ByteSubscriber("S0/vio_odom")
+    vio_sub.set_callback(vio_callback)
+
 
     recorder = Recorder(image_topics)
     recorder.image_sub.rolling = True   # ensure self.image_sub.pop_sync_queue() works
@@ -515,7 +574,10 @@ def read_img(window):
                     update_proxy(window.proxy_3,all_display)
                 if(imageName == 'S0/camd' and window.streaming_status_camd):
                     update_proxy(window.proxy_4,all_display)
-        
+                
+        if not window.is_done:
+            update_proxy(window.proxy_vio, vio_msg)
+
         window.window.post_redraw()
 
 
@@ -551,5 +613,4 @@ def main():
         
 
 if __name__ == "__main__":
-    
     main() 
