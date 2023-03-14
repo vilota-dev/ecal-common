@@ -29,8 +29,8 @@ from utils import SyncedImageSubscriber
 isMacOS = (platform.system() == "Darwin")
 
 image_topics = []
-
-vio = False
+flag_dict = {}
+flag_dict['vio_status'] = False
 
 class Recorder:
 
@@ -163,7 +163,7 @@ class ChooseWindow:
         if self.status_camd:
             image_topics.append("S0/camd")
         if self.status_vio:
-            vio = True
+            flag_dict['vio_status'] = True
         
         print(f"Subscribing to {image_topics}")
 
@@ -438,15 +438,14 @@ def read_img(window):
             
             vio_msg = position_msg + "\n" + orientation_msg + "\n" + device_latency_msg + "\n" + host_latency_msg
 
-    
-    vio_sub = ByteSubscriber("S0/vio_odom")
-    vio_sub.set_callback(vio_callback)
+    if (flag_dict['vio_status']):
+        vio_sub = ByteSubscriber("S0/vio_odom")
+        vio_sub.set_callback(vio_callback)
 
 
     recorder = Recorder(image_topics)
     recorder.image_sub.rolling = True   # ensure self.image_sub.pop_sync_queue() works
 
-    # print(ecal_core.mon_monitoring())
 
     def update_frame(imageName,img_ndarray):
         if(imageName == 'S0/cama' and window.streaming_status_cama):
@@ -576,7 +575,10 @@ def read_img(window):
                     update_proxy(window.proxy_4,all_display)
                 
         if not window.is_done:
-            update_proxy(window.proxy_vio, vio_msg)
+            if flag_dict['vio_status']:
+                update_proxy(window.proxy_vio, vio_msg)
+            else:
+                update_proxy(window.proxy_vio, "vio is not on")
 
         window.window.post_redraw()
 
