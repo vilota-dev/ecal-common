@@ -9,7 +9,16 @@ void callbackSyncedCameras(const std::vector<vk::CameraFrameData::Ptr>& dataVect
 
     std::uint64_t seq = dataVector[0]->seq;
 
+    const int N = dataVector.size();
+
     std::cout << "synced camera received, seq = " << seq << std::endl;
+
+    std::uint64_t nowTns = std::chrono::steady_clock::now().time_since_epoch().count();
+
+    for (int i = 0; i < N; i++){
+        std::cout << "camera "<< i << " latency at test_camera = " 
+            << (nowTns - dataVector[i]->ts) / 1e6 << " ms";
+    }
 }
 
 void callbackImu(const vk::ImuFrameData::Ptr data) {
