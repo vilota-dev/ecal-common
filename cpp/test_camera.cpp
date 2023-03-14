@@ -31,8 +31,9 @@ int main() {
 
     vk::CameraParams param;
 
-    param.camera_topics = {"S0/camd", "S0/camc", "S0/camb"};
-    param.imu_topic = {"S0/imu"};
+    param.tf_prefix = "S0/";
+    param.camera_topics = {"camd", "camc", "camb"};
+    param.imu_topic = {"imu"};
 
     camera->init(param);
 
