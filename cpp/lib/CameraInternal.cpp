@@ -355,6 +355,12 @@ void CameraInternal::imuCallbackInternal(const char* ecal_topic_name, ecal::Imu:
             std::cout << "error: imu message " << ecal_topic_name << " sequence regression, from " << imuMessage->lastSeq << " to " << imuMessage->seq << ", skipping " << std::endl;
             return;
         }
+
+        if (imuMessage->lastSeq + imuMessage->seqIncrement != imuMessage->seq)
+        {
+            std::cout << "imu subscriber: missing packets in transmission, from last seq " << imuMessage->lastSeq <<
+                " to " << imuMessage->seq << ", expecting " << imuMessage->lastSeq + imuMessage->seqIncrement << std::endl;
+        }
     }
 
     m_lastSeqImu = imuMessage->seq;
