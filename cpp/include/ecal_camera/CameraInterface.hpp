@@ -84,6 +84,7 @@ struct ImuFrameData {
     std::uint64_t ts;
     std::uint64_t seq;
     std::uint64_t lastSeq = 0;
+    int seqIncrement;
 
     Eigen::Vector3d accel;
     Eigen::Vector3d gyro;

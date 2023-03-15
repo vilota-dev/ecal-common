@@ -338,6 +338,7 @@ void CameraInternal::imuCallbackInternal(const char* ecal_topic_name, ecal::Imu:
     ImuFrameData::Ptr imuMessage = std::make_shared<ImuFrameData>();
 
     imuMessage->seq = header.getSeq();
+    imuMessage->seqIncrement = ecal_msg.getSeqIncrement();
 
     if (m_lastSeqImu == 0) {
         // first time receiving message
