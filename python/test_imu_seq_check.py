@@ -14,24 +14,37 @@ capnp.add_import_hook(['../src/capnp'])
 import imu_capnp as eCALImu
 
 last_seq = None
+last_ecal_time = None
 
-def callback(topic_name, msg, time):
+def callback(topic_name, msg, time_ecal):
 
     global last_seq
+    global last_ecal_time
+
+    time_now = time.time_ns() / 1e3
+
+    
 
     # need to remove the .decode() function within the Python API of ecal.core.subscriber ByteSubscriber
     
     with eCALImu.Imu.from_bytes(msg) as imuMsg:
-        print(f"seq = {imuMsg.header.seq}")
-
+            
+        force_print = False
         if last_seq is None:
             pass
         else:
             expected_seq = last_seq + imuMsg.seqIncrement
             if imuMsg.header.seq != expected_seq:
-                print(f"actual seq {imuMsg.header.seq} and expected {expected_seq} mismatch, last seq {last_seq}")
+                print(f"WARN: actual seq {imuMsg.header.seq} and expected {expected_seq} mismatch, last seq {last_seq}")
+                force_print = True
+
+        if force_print or imuMsg.header.seq % 100 == 0:
+            decoded_time = time.time_ns() / 1e3
+            print(f"seq = {imuMsg.header.seq}, lapse {(time_now - time_ecal)} us, decoding {decoded_time - time_now} us")
+            print(f"time interval since the last ecal message at sender {time_ecal - last_ecal_time} us")
 
         last_seq = imuMsg.header.seq
+        last_ecal_time = time_ecal
 
 def main():  
 
