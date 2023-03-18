@@ -15,6 +15,10 @@ capnp.add_import_hook(['../src/capnp'])
 
 import rospy
 from nav_msgs.msg import Odometry
+from geometry_msgs.msg import TransformStamped
+import tf2_ros
+
+import tf
 
 import odometry3d_capnp as eCALOdometry3d
 
@@ -22,9 +26,56 @@ import odometry3d_capnp as eCALOdometry3d
 
 class RosOdometryPublisher:
 
-    def __init__(self, topic) -> None:
+    def __init__(self, topic : str) -> None:
         self.first_message = True
-        self.ros_pub = rospy.Publisher(topic, Odometry, queue_size=10)
+        self.ros_odom_pub = rospy.Publisher(topic, Odometry, queue_size=10)
+
+        if topic.endswith("_ned"):
+            self.isNED = True
+            # static transforms
+            self.static_broadcaster = tf2_ros.StaticTransformBroadcaster()
+            self.broadcaster = tf2_ros.TransformBroadcaster()
+
+            tf_msg = TransformStamped()
+            tf_msg.header.stamp = rospy.Time.now()
+            tf_msg.header.frame_id = "odom"
+            tf_msg.child_frame_id = "odom_ned"
+
+            tf_msg.transform.translation.x = 0
+            tf_msg.transform.translation.y = 0
+            tf_msg.transform.translation.z = 0
+
+            # R_ned_nwu = np.array ([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+            T_nwu_ned = np.identity(4)
+            R_nwu_ned = np.array ([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+            T_nwu_ned[:3, :3] = R_nwu_ned
+            quat = tf.transformations.quaternion_from_matrix(T_nwu_ned)
+
+            tf_msg.transform.rotation.x = quat[0]
+            tf_msg.transform.rotation.y = quat[1]
+            tf_msg.transform.rotation.z = quat[2]
+            tf_msg.transform.rotation.w = quat[3]
+
+            time.sleep(0.5)
+
+            self.static_broadcaster.sendTransform(tf_msg)
+
+            self.tf_msg_odom = tf_msg
+
+            time.sleep(0.1)
+
+            tf_msg.header.stamp = rospy.Time.now()
+
+            tf_msg.header.frame_id = "base_link"
+            tf_msg.child_frame_id = "base_link_ned"
+
+            self.static_broadcaster.sendTransform(tf_msg)
+
+            self.tf_msg_base_link = tf_msg
+
+
+        else:
+            self.isNED = False
         
 
     def callback(self, topic_name, msg, time):
@@ -47,8 +98,14 @@ class RosOdometryPublisher:
 
             ros_msg = Odometry();
             ros_msg.header.seq = odometryMsg.header.seq
-            ros_msg.header.stamp.from_sec(odometryMsg.header.stamp / 1.0e9)
-            ros_msg.header.frame_id = "map"
+            ros_msg.header.stamp = rospy.Time.now() #.from_sec(odometryMsg.header.stamp / 1.0e9)
+
+            if self.isNED:
+                ros_msg.header.frame_id = "odom_ned"
+                ros_msg.child_frame_id = "base_link_ned"
+            else:
+                ros_msg.header.frame_id = "odom"
+                ros_msg.child_frame_id = "base_link"
 
             ros_msg.pose.pose.position.x = odometryMsg.pose.position.x
             ros_msg.pose.pose.position.y = odometryMsg.pose.position.y
@@ -59,7 +116,27 @@ class RosOdometryPublisher:
             ros_msg.pose.pose.orientation.y = odometryMsg.pose.orientation.y
             ros_msg.pose.pose.orientation.z = odometryMsg.pose.orientation.z
 
-            self.ros_pub.publish(ros_msg)            
+            self.ros_odom_pub.publish(ros_msg)
+
+            # publish
+
+            tf_msg = TransformStamped()
+            tf_msg.header.stamp = rospy.Time.now()
+
+            if self.isNED:
+                tf_msg.header.frame_id = "odom_ned"
+                tf_msg.child_frame_id = "base_link_ned"
+            else:
+                tf_msg.header.frame_id = "odom"
+                tf_msg.child_frame_id = "base_link"
+
+            tf_msg.transform.translation.x = odometryMsg.pose.position.x
+            tf_msg.transform.translation.y = odometryMsg.pose.position.y
+            tf_msg.transform.translation.z = odometryMsg.pose.position.z
+
+            tf_msg.transform.rotation = ros_msg.pose.pose.orientation
+
+            self.broadcaster.sendTransform(tf_msg)
 
 
 def main():  
@@ -75,9 +152,13 @@ def main():
 
     rospy.init_node("ros_odometry_publisher")
 
-    
-
-    topic = "S0/vio_odom"
+    n = len(sys.argv)
+    if n == 1:
+        topic = "S0/vio_odom"
+    elif n == 2:
+        topic = sys.argv[1]
+    else:
+        raise RuntimeError("Need to pass in exactly one parameter for topic")
 
     ros_odometry_pub = RosOdometryPublisher(topic)
 
