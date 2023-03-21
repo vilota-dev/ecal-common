@@ -30,11 +30,12 @@ class RosOdometryPublisher:
         self.first_message = True
         self.ros_odom_pub = rospy.Publisher(topic, Odometry, queue_size=10)
 
+        # static transforms
+        self.static_broadcaster = tf2_ros.StaticTransformBroadcaster()
+        self.broadcaster = tf2_ros.TransformBroadcaster()
+
         if topic.endswith("_ned"):
             self.isNED = True
-            # static transforms
-            self.static_broadcaster = tf2_ros.StaticTransformBroadcaster()
-            self.broadcaster = tf2_ros.TransformBroadcaster()
 
             tf_msg = TransformStamped()
             tf_msg.header.stamp = rospy.Time.now()
