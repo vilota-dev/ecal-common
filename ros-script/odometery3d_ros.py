@@ -3,6 +3,7 @@
 import sys
 import time
 import threading
+import argparse
 
 import capnp
 import numpy as np
@@ -144,6 +145,14 @@ def main():
 
     # print eCAL version and date
     print("eCAL {} ({})\n".format(ecal_core.getversion(), ecal_core.getdate()))
+
+    topic_ecal = "S0/vio_odom"
+    topic_ros = "S0/vio_odom"
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('ecal_topic_in', nargs='?', help="topic of ecal", default=topic_ecal)
+    parser.add_argument('ros_topic_out', nargs='?', help="topic of ros", default=topic_ros)
+    args = parser.parse_args()
     
     # initialize eCAL API
     ecal_core.initialize(sys.argv, "test_odometry_sub")
@@ -153,18 +162,10 @@ def main():
 
     rospy.init_node("ros_odometry_publisher")
 
-    n = len(sys.argv)
-    if n == 1:
-        topic = "S0/vio_odom"
-    elif n == 2:
-        topic = sys.argv[1]
-    else:
-        raise RuntimeError("Need to pass in exactly one parameter for topic")
-
-    ros_odometry_pub = RosOdometryPublisher(topic)
+    ros_odometry_pub = RosOdometryPublisher(topic_ros)
 
     # create subscriber and connect callback
-    sub = ByteSubscriber(topic)
+    sub = ByteSubscriber(topic_ecal)
     sub.set_callback(ros_odometry_pub.callback)
     
     # idle main thread
