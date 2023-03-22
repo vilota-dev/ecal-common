@@ -7,6 +7,7 @@ from byte_subscriber import ByteSubscriber
 
 capnp.add_import_hook(['../src/capnp'])
 
+import odometry3d_capnp as eCALOdometry3d
 import image_capnp as eCALImage
 import imu_capnp as eCALImu
 
@@ -238,3 +239,96 @@ def image_resize(image, width = None, height = None, inter = cv2.INTER_AREA):
 
     # return the resized image
     return resized
+
+
+class VioSubscriber:
+
+    def __init__(self, vio_topic):
+
+        self.vio_sub = ByteSubscriber(vio_topic)
+        self.vio_msg = ""
+        self.vio_sub.set_callback(self._vio_callback)
+
+    def _vio_callback(self, topic_name, msg, time):
+
+        # need to remove the .decode() function within the Python API of ecal.core.subscriber ByteSubscriber
+        
+        with eCALOdometry3d.Odometry3d.from_bytes(msg) as odometryMsg:
+
+            # if first_message:
+            #     print(f"bodyFrame = {odometryMsg.bodyFrame}")
+            #     print(f"referenceFrame = {odometryMsg.referenceFrame}")
+            #     print(f"velocityFrame = {odometryMsg.velocityFrame}")
+            #     first_message = False
+
+            position_msg = f"position: \n {odometryMsg.pose.position.x:.4f}, {odometryMsg.pose.position.y:.4f}, {odometryMsg.pose.position.z:.4f}"
+            orientation_msg = f"orientation: \n  {odometryMsg.pose.orientation.w:.4f}, {odometryMsg.pose.orientation.x:.4f}, {odometryMsg.pose.orientation.y:.4f}, {odometryMsg.pose.orientation.z:.4f}"
+            
+
+            device_latency_msg = f"device latency = {odometryMsg.header.latencyDevice / 1e6 : .2f} ms"
+            
+            vio_host_latency = monotonic() *1e9 - odometryMsg.header.stamp 
+            host_latency_msg = f"host latency = {vio_host_latency / 1e6 :.2f} ms"
+            
+            self.vio_msg = position_msg + "\n" + orientation_msg + "\n" + device_latency_msg + "\n" + host_latency_msg
+
+
+def add_ui_on_ndarray(img_ndarray, exposureUSec, gain, latencyDevice_display, latencyHost_display, expTime_display_flag, sensIso_display_flag, latencyDevice_display_flag,latencyHost_display_flag):
+    
+    expMin = 10
+    expMax = 12000
+    sensMin = 100
+    sensMax = 800
+    
+    progress_bar_length = 200
+    progress_bar_height = 15
+    
+    left_x = 10
+    
+    left_y_pb1 = 30
+    spacing_2pb = 30
+    left_y_pb2 = left_y_pb1 + progress_bar_height + spacing_2pb
+
+    expTime_frame_start = (left_x, left_y_pb1)
+    expTime_frame_end = (left_x + progress_bar_length, left_y_pb1 + progress_bar_height)
+    
+    sensIso_frame_start = (left_x,left_y_pb2)
+    sensIso_frame_end = (left_x + progress_bar_length, left_y_pb2 + progress_bar_height)
+
+    spacing_pb_text = 40
+    spacing_2text = 20
+    latencyDevice_coor = (left_x, left_y_pb2 + progress_bar_height + spacing_pb_text)
+    latencyHost_coor = (left_x, left_y_pb2 + progress_bar_height + spacing_pb_text + spacing_2text)
+
+    if expTime_display_flag:
+        # add progress bar
+        expTime_length = int((exposureUSec - expMin) / (expMax - expMin) * progress_bar_length)
+        img_ndarray = cv2.rectangle(img_ndarray, expTime_frame_start, (left_x + expTime_length, expTime_frame_end[1]), (255, 0, 0),-1)
+        # add progress bar frame
+        img_ndarray = cv2.rectangle(img_ndarray, expTime_frame_start, expTime_frame_end, (255, 255, 255),2)
+        # add description
+        img_ndarray = cv2.putText(img_ndarray, 'expTime', (expTime_frame_end[0]+5, expTime_frame_start[1]), cv2.FONT_HERSHEY_TRIPLEX, 0.5, (255, 0, 0), 1)
+        img_ndarray = cv2.putText(img_ndarray, str(expMin), (expTime_frame_start[0],expTime_frame_end[1]+15), cv2.FONT_HERSHEY_TRIPLEX, 0.4, (255, 255, 255), 1)    
+        img_ndarray = cv2.putText(img_ndarray, str(expMax), (expTime_frame_end[0],expTime_frame_end[1]+15), cv2.FONT_HERSHEY_TRIPLEX, 0.4, (255, 255, 255), 1)    
+
+    if sensIso_display_flag:
+        # add progress bar
+        sensIso_length = int((gain - sensMin) / (sensMax - sensMin) * progress_bar_length)
+        img_ndarray = cv2.rectangle(img_ndarray, sensIso_frame_start, (left_x +sensIso_length, sensIso_frame_end[1]), (0, 0, 255),-1)
+        # add progress bar frame
+        img_ndarray = cv2.rectangle(img_ndarray, sensIso_frame_start, sensIso_frame_end, (255, 255, 255),2)
+        # add description
+        img_ndarray = cv2.putText(img_ndarray, 'sensIso', (sensIso_frame_end[0]+5, sensIso_frame_start[1]), cv2.FONT_HERSHEY_TRIPLEX, 0.5, (0, 0, 255), 1)    
+        img_ndarray = cv2.putText(img_ndarray, str(sensMin), (sensIso_frame_start[0],sensIso_frame_end[1]+15), cv2.FONT_HERSHEY_TRIPLEX, 0.4, (255, 255, 255), 1)    
+        img_ndarray = cv2.putText(img_ndarray, str(sensMax), (sensIso_frame_end[0],sensIso_frame_end[1]+15), cv2.FONT_HERSHEY_TRIPLEX, 0.4, (255, 255, 255), 1)    
+
+
+    # add latency text
+    if latencyDevice_display_flag:
+        img_ndarray = cv2.putText(img_ndarray, latencyDevice_display, latencyDevice_coor, cv2.FONT_HERSHEY_TRIPLEX, 0.5, (127, 0, 255), 1)  
+    
+    if latencyHost_display_flag:
+        img_ndarray = cv2.putText(img_ndarray, latencyHost_display, latencyHost_coor, cv2.FONT_HERSHEY_TRIPLEX, 0.5, (127, 0, 255), 1)
+
+    return img_ndarray    
+

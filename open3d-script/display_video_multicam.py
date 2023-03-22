@@ -24,19 +24,61 @@ import open3d.visualization.gui as gui
 
 from PIL import Image
 
-from utils import SyncedImageSubscriber
+from utils import SyncedImageSubscriber, add_ui_on_ndarray, VioSubscriber
 
 isMacOS = (platform.system() == "Darwin")
 
 image_topics = []
 flag_dict = {}
 flag_dict['vio_status'] = False
+flag_dict['synced_status'] = False
 
 class SyncedRecorder:
 
     def __init__(self, image_topics):
 
         self.image_sub = SyncedImageSubscriber(image_topics)
+
+
+
+class ImageSubscriber:
+
+    def __init__(self, image_topic):
+
+        self.image_sub = ByteSubscriber(image_topic)
+        self.all_display = ""
+        self.img_ndarray = []
+        self.metadata = None
+        self.image_sub.set_callback(self._image_callback)
+
+    def _image_callback(self, topic_name, msg, ts):
+
+        # need to remove the .decode() function within the Python API of ecal.core.subscriber StringSubscriber
+        with eCALImage.Image.from_bytes(msg) as imageMsg:
+
+            if (imageMsg.encoding == "mono8"):
+                self.metadata = imageMsg
+                # self.img_ndarray = np.frombuffer(imageMsg.data, dtype=np.uint8)
+                # self.img_ndarray = self.img_ndarray.reshape((imageMsg.height, imageMsg.width, 1))
+                
+                # expTime_display = f"expTime = {imageMsg.exposureUSec}" 
+                # sensIso_display = f"sensIso = {imageMsg.gain}" 
+                # latencyDevice_display = f"device latency = {imageMsg.header.latencyDevice / 1e6 :.2f} ms" 
+                # host_latency = time.monotonic() *1e9 - imageMsg.header.stamp 
+                # latencyHost_display = f"host latency = {host_latency / 1e6 :.2f} ms" 
+
+                # self.all_display = imageName + '\n' + expTime_display + '\n' + sensIso_display + '\n' + latencyDevice_display + '\n' + latencyHost_display 
+                
+                # dim = (512, 320) #width height
+                # self.img_ndarray = cv2.resize(self.img_ndarray, dim, interpolation = cv2.INTER_NEAREST)
+
+                # #convert numpy array to 3 channel
+                # self.img_ndarray = np.repeat(self.img_ndarray.reshape(dim[1], dim[0], 1), 3, axis=2)         
+                    
+                
+                # imshow_map[topic_name + " mono8"] = mat
+            else:
+                raise RuntimeError("unknown encoding: " + imageMsg.encoding)
 
 class ChooseWindow:
 
@@ -76,6 +118,9 @@ class ChooseWindow:
 
         self.cb_vio = gui.Checkbox("vio is on")
         self.panel_main.add_child(self.cb_vio)
+
+        self.cb_synced = gui.Checkbox("used synced image")
+        self.panel_main.add_child(self.cb_synced)
         
         self.window.add_child(self.panel_main) 
 
@@ -121,6 +166,8 @@ class ChooseWindow:
             image_topics.append("S0/camd")
         if self.cb_vio.checked:
             flag_dict['vio_status'] = True
+        if self.cb_synced.checked:
+            flag_dict['synced_status'] = True
         
         print(f"Subscribing to {image_topics}")
 
@@ -324,7 +371,6 @@ class VideoWindow:
     
 
 
-vio_msg = ""
 
 
 def read_img(window):
@@ -341,40 +387,20 @@ def read_img(window):
 
     # print(type(ecal_core.mon_monitoring()[1]))
 
-    
-
-    def vio_callback(topic_name, msg, time):
-
-        global vio_msg
-        # need to remove the .decode() function within the Python API of ecal.core.subscriber ByteSubscriber
-        
-        with eCALOdometry3d.Odometry3d.from_bytes(msg) as odometryMsg:
-
-
-            # if first_message:
-            #     print(f"bodyFrame = {odometryMsg.bodyFrame}")
-            #     print(f"referenceFrame = {odometryMsg.referenceFrame}")
-            #     print(f"velocityFrame = {odometryMsg.velocityFrame}")
-            #     first_message = False
-
-            position_msg = f"position: \n {odometryMsg.pose.position.x:.4f}, {odometryMsg.pose.position.y:.4f}, {odometryMsg.pose.position.z:.4f}"
-            orientation_msg = f"orientation: \n  {odometryMsg.pose.orientation.w:.4f}, {odometryMsg.pose.orientation.x:.4f}, {odometryMsg.pose.orientation.y:.4f}, {odometryMsg.pose.orientation.z:.4f}"
-            
-
-            device_latency_msg = f"device latency = {odometryMsg.header.latencyDevice / 1e6 : .2f} ms"
-            
-            vio_host_latency = monotonic() *1e9 - odometryMsg.header.stamp 
-            host_latency_msg = f"host latency = {vio_host_latency / 1e6 :.2f} ms"
-            
-            vio_msg = position_msg + "\n" + orientation_msg + "\n" + device_latency_msg + "\n" + host_latency_msg
-
+    # srt up vio sub subscriber
     if (flag_dict['vio_status']):
-        vio_sub = ByteSubscriber("S0/vio_odom")
-        vio_sub.set_callback(vio_callback)
+        vio_sub = VioSubscriber("S0/vio_odom")
+
+    if (flag_dict['synced_status']):
+        synced_recorder = SyncedRecorder(image_topics)
+        synced_recorder.image_sub.rolling = True   # ensure self.image_sub.pop_sync_queue() works
+    else:
+        # cama_tn_sub = ImageSubscriber("S0/thumbnail/cama")
+        camb_tn_sub = ImageSubscriber("S0/thumbnail/camb")
+        camc_tn_sub = ImageSubscriber("S0/thumbnail/camc")
+        camd_tn_sub = ImageSubscriber("S0/thumbnail/camd")
 
 
-    synced_recorder = SyncedRecorder(image_topics)
-    synced_recorder.image_sub.rolling = True   # ensure self.image_sub.pop_sync_queue() works
 
 
     def update_frame(imageName,img_ndarray):
@@ -404,36 +430,20 @@ def read_img(window):
         window.window.set_needs_layout() 
         
 
-    expMin = 10
-    expMax = 12000
-    sensMin = 100
-    sensMax = 800
-    
-    progress_bar_length = 200
-    progress_bar_height = 15
-    
-    left_x = 10
-    
-    left_y_pb1 = 30
-    spacing_2pb = 30
-    left_y_pb2 = left_y_pb1 + progress_bar_height + spacing_2pb
-
-    expTime_frame_start = (left_x, left_y_pb1)
-    expTime_frame_end = (left_x + progress_bar_length, left_y_pb1 + progress_bar_height)
-    
-    sensIso_frame_start = (left_x,left_y_pb2)
-    sensIso_frame_end = (left_x + progress_bar_length, left_y_pb2 + progress_bar_height)
-
-    spacing_pb_text = 40
-    spacing_2text = 20
-    latencyDevice_coor = (left_x, left_y_pb2 + progress_bar_height + spacing_pb_text)
-    latencyHost_coor = (left_x, left_y_pb2 + progress_bar_height + spacing_pb_text + spacing_2text)
 
     while ecal_core.ok():
 
-        # READ IN DATA
-        ecal_images = synced_recorder.image_sub.pop_sync_queue()
-        
+        # synced mode
+        if (flag_dict['synced_status']):
+            ecal_images = synced_recorder.image_sub.pop_sync_queue()
+        else:
+            # ecal_images = {}
+            # ecal_images["S0/camb"] = camb_tn_sub.metadata
+            # ecal_images["S0/camb"] = camc_tn_sub.metadata
+            # ecal_images["S0/camb"] = camd_tn_sub.metadata
+            print("have not implemented this function")
+            return
+
         for imageName in ecal_images:
 
             imageMsg = ecal_images[imageName]
@@ -460,37 +470,12 @@ def read_img(window):
             #convert numpy array to 3 channel
             img_ndarray = np.repeat(img_ndarray.reshape(dim[1], dim[0], 1), 3, axis=2)
 
-
-            if window.expTime_display_flag:
-                # add progress bar
-                expTime_length = int((imageMsg.exposureUSec - expMin) / (expMax - expMin) * progress_bar_length)
-                img_ndarray = cv2.rectangle(img_ndarray, expTime_frame_start, (left_x + expTime_length, expTime_frame_end[1]), (255, 0, 0),-1)
-                # add progress bar frame
-                img_ndarray = cv2.rectangle(img_ndarray, expTime_frame_start, expTime_frame_end, (255, 255, 255),2)
-                # add description
-                img_ndarray = cv2.putText(img_ndarray, 'expTime', (expTime_frame_end[0]+5, expTime_frame_start[1]), cv2.FONT_HERSHEY_TRIPLEX, 0.5, (255, 0, 0), 1)
-                img_ndarray = cv2.putText(img_ndarray, str(expMin), (expTime_frame_start[0],expTime_frame_end[1]+15), cv2.FONT_HERSHEY_TRIPLEX, 0.4, (255, 255, 255), 1)    
-                img_ndarray = cv2.putText(img_ndarray, str(expMax), (expTime_frame_end[0],expTime_frame_end[1]+15), cv2.FONT_HERSHEY_TRIPLEX, 0.4, (255, 255, 255), 1)    
-
-            if window.sensIso_display_flag:
-                # add progress bar
-                sensIso_length = int((imageMsg.gain - sensMin) / (sensMax - sensMin) * progress_bar_length)
-                img_ndarray = cv2.rectangle(img_ndarray, sensIso_frame_start, (left_x +sensIso_length, sensIso_frame_end[1]), (0, 0, 255),-1)
-                # add progress bar frame
-                img_ndarray = cv2.rectangle(img_ndarray, sensIso_frame_start, sensIso_frame_end, (255, 255, 255),2)
-                # add description
-                img_ndarray = cv2.putText(img_ndarray, 'sensIso', (sensIso_frame_end[0]+5, sensIso_frame_start[1]), cv2.FONT_HERSHEY_TRIPLEX, 0.5, (0, 0, 255), 1)    
-                img_ndarray = cv2.putText(img_ndarray, str(sensMin), (sensIso_frame_start[0],sensIso_frame_end[1]+15), cv2.FONT_HERSHEY_TRIPLEX, 0.4, (255, 255, 255), 1)    
-                img_ndarray = cv2.putText(img_ndarray, str(sensMax), (sensIso_frame_end[0],sensIso_frame_end[1]+15), cv2.FONT_HERSHEY_TRIPLEX, 0.4, (255, 255, 255), 1)    
-
-
-            # add latency text
-            if window.latencyDevice_display_flag:
-                img_ndarray = cv2.putText(img_ndarray, latencyDevice_display, latencyDevice_coor, cv2.FONT_HERSHEY_TRIPLEX, 0.5, (127, 0, 255), 1)  
+            img_ndarray = add_ui_on_ndarray(img_ndarray, imageMsg.exposureUSec, imageMsg.gain, latencyDevice_display, latencyHost_display,
+                                            window.expTime_display_flag,
+                                            window.sensIso_display_flag,
+                                            window.latencyDevice_display_flag,
+                                            window.latencyHost_display_flag)
             
-            if window.latencyHost_display_flag:
-                img_ndarray = cv2.putText(img_ndarray, latencyHost_display, latencyHost_coor, cv2.FONT_HERSHEY_TRIPLEX, 0.5, (127, 0, 255), 1)    
-
 
             if not window.is_done:
 
@@ -506,11 +491,12 @@ def read_img(window):
                 
         if not window.is_done:
             if flag_dict['vio_status']:
-                update_proxy(window.proxy_vio, vio_msg)
+                update_proxy(window.proxy_vio, vio_sub.vio_msg)
             else:
                 update_proxy(window.proxy_vio, "vio is not on")
 
         window.window.post_redraw()
+
 
 
     # finalize eCAL API
