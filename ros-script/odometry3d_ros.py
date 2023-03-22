@@ -74,7 +74,7 @@ class RosOdometryPublisher:
             tf_msg.header.stamp = rospy.Time.now()
 
             tf_msg.header.frame_id = "base_link"
-            tf_msg.child_frame_id = "base_link_ned"
+            tf_msg.child_frame_id = "base_link_frd"
 
             self.static_broadcaster.sendTransform(tf_msg)
 
@@ -109,7 +109,7 @@ class RosOdometryPublisher:
 
             if self.isNED:
                 ros_msg.header.frame_id = "odom_ned"
-                ros_msg.child_frame_id = "base_link_ned"
+                ros_msg.child_frame_id = "base_link_frd"
             else:
                 ros_msg.header.frame_id = "odom"
                 ros_msg.child_frame_id = "base_link"
@@ -132,7 +132,7 @@ class RosOdometryPublisher:
 
             if self.isNED:
                 tf_msg.header.frame_id = "odom_ned"
-                tf_msg.child_frame_id = "base_link_ned"
+                tf_msg.child_frame_id = "base_link_frd"
             else:
                 tf_msg.header.frame_id = "odom"
                 tf_msg.child_frame_id = "base_link"
