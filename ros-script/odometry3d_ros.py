@@ -17,7 +17,7 @@ current_path = str(pathlib.Path(__file__).parent.resolve())
 
 print("working in path " + current_path)
 
-capnp.add_import_hook([current_path + '/../src/capnp'])
+capnp.add_import_hook([current_path + '/../src/capnp', current_path + '/ecal-common/src/capnp'])
 
 import rospy
 from nav_msgs.msg import Odometry
