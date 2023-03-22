@@ -32,7 +32,7 @@ image_topics = []
 flag_dict = {}
 flag_dict['vio_status'] = False
 
-class Recorder:
+class SyncedRecorder:
 
     def __init__(self, image_topics):
 
@@ -44,11 +44,6 @@ class ChooseWindow:
         
         self.is_done = False
         
-        self.status_cama = False
-        self.status_camb = False
-        self.status_camc = False
-        self.status_camd = False
-        self.status_vio = False
 
         # CONFIGURE WINDOW
         self.window = gui.Application.instance.create_window(
@@ -67,25 +62,20 @@ class ChooseWindow:
         self.label_description.text_color = gui.Color(1.0, 0.5, 0.0)
         self.panel_main.add_child(self.label_description)
 
-        cb_cama = gui.Checkbox("cam_a")
-        cb_cama.set_on_checked(self._on_cb_cama)  # set the callback function
-        self.panel_main.add_child(cb_cama)
+        self.cb_cama = gui.Checkbox("cam_a")
+        self.panel_main.add_child(self.cb_cama)
 
-        cb_camb = gui.Checkbox("cam_b")
-        cb_camb.set_on_checked(self._on_cb_camb)  
-        self.panel_main.add_child(cb_camb)
+        self.cb_camb = gui.Checkbox("cam_b")
+        self.panel_main.add_child(self.cb_camb)
 
-        cb_camc = gui.Checkbox("cam_c")
-        cb_camc.set_on_checked(self._on_cb_camc)  
-        self.panel_main.add_child(cb_camc)
+        self.cb_camc = gui.Checkbox("cam_c")
+        self.panel_main.add_child(self.cb_camc)
 
-        cb_camd = gui.Checkbox("cam_d")
-        cb_camd.set_on_checked(self._on_cb_camd)  
-        self.panel_main.add_child(cb_camd)
+        self.cb_camd = gui.Checkbox("cam_d")
+        self.panel_main.add_child(self.cb_camd)
 
-        cb_vio = gui.Checkbox("vio is on")
-        cb_vio.set_on_checked(self._on_cb_vio)  
-        self.panel_main.add_child(cb_vio)
+        self.cb_vio = gui.Checkbox("vio is on")
+        self.panel_main.add_child(self.cb_vio)
         
         self.window.add_child(self.panel_main) 
 
@@ -115,54 +105,21 @@ class ChooseWindow:
                                 50)
 
 
-
-
     def _on_close(self):
         self.is_done = True
         return True  # False would cancel the close
 
-
-    def _on_cb_cama(self, is_checked):
-        if is_checked:
-            self.status_cama = True
-        else:
-            self.status_cama = False
-    
-    def _on_cb_camb(self, is_checked):
-        if is_checked:
-            self.status_camb = True
-        else:
-            self.status_camb = False    
-    
-    def _on_cb_camc(self, is_checked):
-        if is_checked:
-            self.status_camc = True
-        else:
-            self.status_camc = False    
-    
-    def _on_cb_camd(self, is_checked):
-        if is_checked:
-            self.status_camd = True
-        else:
-            self.status_camd = False
-    
-    def _on_cb_vio(self, is_checked):
-        if is_checked:
-            self.status_vio = True
-        else:
-            self.status_vio = False
-    
     def _on_ok(self):
 
-        if self.status_cama:
+        if self.cb_cama.checked:
             image_topics.append("S0/cama")
-        if self.status_camb:
+        if self.cb_camb.checked:
             image_topics.append("S0/camb")        
-        if self.status_camc:
+        if self.cb_camc.checked:
             image_topics.append("S0/camc")        
-        if self.status_camd:
+        if self.cb_camd.checked:
             image_topics.append("S0/camd")
-        if self.status_vio:
+        if self.cb_vio.checked:
             flag_dict['vio_status'] = True
         
         print(f"Subscribing to {image_topics}")
@@ -179,10 +136,6 @@ class VideoWindow:
                 
         self.is_done = False
 
-        self.streaming_status_cama = False
-        self.streaming_status_camb = False
-        self.streaming_status_camc = False
-        self.streaming_status_camd = False
 
         self.expTime_display_flag = False
         self.sensIso_display_flag = False
@@ -239,21 +192,21 @@ class VideoWindow:
         self.label_camera_control.text_color = gui.Color(1.0, 0.5, 0.0)
         self.collapse.add_child(self.label_camera_control)
         
-        cb_cama = gui.Checkbox("Start streaming cama")
-        cb_cama.set_on_checked(self._on_cb_cama)  # set the callback function
-        self.collapse.add_child(cb_cama)
+        self.cb_cama = gui.Checkbox("Start streaming cama")
+        self.cb_cama.checked = True
+        self.collapse.add_child(self.cb_cama)
 
-        cb_camb = gui.Checkbox("Start streaming camb")
-        cb_camb.set_on_checked(self._on_cb_camb)  # set the callback function
-        self.collapse.add_child(cb_camb)
+        self.cb_camb = gui.Checkbox("Start streaming camb")
+        self.cb_camb.checked = True
+        self.collapse.add_child(self.cb_camb)
 
-        cb_camc = gui.Checkbox("Start streaming camc")
-        cb_camc.set_on_checked(self._on_cb_camc)  # set the callback function
-        self.collapse.add_child(cb_camc)
+        self.cb_camc = gui.Checkbox("Start streaming camc")
+        self.cb_camc.checked = True
+        self.collapse.add_child(self.cb_camc)
 
-        cb_camd = gui.Checkbox("Start streaming camd")
-        cb_camd.set_on_checked(self._on_cb_camd)  # set the callback function
-        self.collapse.add_child(cb_camd)
+        self.cb_camd = gui.Checkbox("Start streaming camd")
+        self.cb_camd.checked = True
+        self.collapse.add_child(self.cb_camd)
         
         self.label_display_control = gui.Label("Display control")
         self.label_display_control.text_color = gui.Color(1.0, 0.5, 0.0)
@@ -344,29 +297,6 @@ class VideoWindow:
     def _on_menu_quit(self):
         gui.Application.instance.quit()
 
-    def _on_cb_cama(self, is_checked):
-        if is_checked:
-            self.streaming_status_cama = True
-        else:
-            self.streaming_status_cama = False
-    
-    def _on_cb_camb(self, is_checked):
-        if is_checked:
-            self.streaming_status_camb = True
-        else:
-            self.streaming_status_camb = False    
-    
-    def _on_cb_camc(self, is_checked):
-        if is_checked:
-            self.streaming_status_camc = True
-        else:
-            self.streaming_status_camc = False    
-    
-    def _on_cb_camd(self, is_checked):
-        if is_checked:
-            self.streaming_status_camd = True
-        else:
-            self.streaming_status_camd = False
     
     def _on_switch_expTime(self, is_on):
         if is_on:
@@ -443,21 +373,21 @@ def read_img(window):
         vio_sub.set_callback(vio_callback)
 
 
-    recorder = Recorder(image_topics)
-    recorder.image_sub.rolling = True   # ensure self.image_sub.pop_sync_queue() works
+    synced_recorder = SyncedRecorder(image_topics)
+    synced_recorder.image_sub.rolling = True   # ensure self.image_sub.pop_sync_queue() works
 
 
     def update_frame(imageName,img_ndarray):
-        if(imageName == 'S0/cama' and window.streaming_status_cama):
+        if(imageName == 'S0/cama' and window.cb_cama.checked):
             window.rgb_widget_1.update_image(o3d.geometry.Image(img_ndarray))
 
-        if(imageName == 'S0/camb' and window.streaming_status_camb):
+        if(imageName == 'S0/camb' and window.cb_camb.checked):
             window.rgb_widget_2.update_image(o3d.geometry.Image(img_ndarray))
         
-        if(imageName == 'S0/camc' and window.streaming_status_camc):
+        if(imageName == 'S0/camc' and window.cb_camc.checked):
             window.rgb_widget_3.update_image(o3d.geometry.Image(img_ndarray))
         
-        if(imageName == 'S0/camd' and window.streaming_status_camd):
+        if(imageName == 'S0/camd' and window.cb_camd.checked):
             window.rgb_widget_4.update_image(o3d.geometry.Image(img_ndarray))
 
 
@@ -502,7 +432,7 @@ def read_img(window):
     while ecal_core.ok():
 
         # READ IN DATA
-        ecal_images = recorder.image_sub.pop_sync_queue()
+        ecal_images = synced_recorder.image_sub.pop_sync_queue()
         
         for imageName in ecal_images:
 
@@ -565,13 +495,13 @@ def read_img(window):
             if not window.is_done:
 
                 update_frame(imageName, img_ndarray)
-                if(imageName == 'S0/cama' and window.streaming_status_cama):
+                if(imageName == 'S0/cama' and window.cb_cama.checked):
                     update_proxy(window.proxy_1,all_display)
-                if(imageName == 'S0/camb' and window.streaming_status_camb):
+                if(imageName == 'S0/camb' and window.cb_camb.checked):
                     update_proxy(window.proxy_2,all_display)
-                if(imageName == 'S0/camc' and window.streaming_status_camc):
+                if(imageName == 'S0/camc' and window.cb_camc.checked):
                     update_proxy(window.proxy_3,all_display)
-                if(imageName == 'S0/camd' and window.streaming_status_camd):
+                if(imageName == 'S0/camd' and window.cb_camd.checked):
                     update_proxy(window.proxy_4,all_display)
                 
         if not window.is_done:
