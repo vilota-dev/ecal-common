@@ -11,8 +11,13 @@ import numpy as np
 import ecal.core.core as ecal_core
 from byte_subscriber import ByteSubscriber
 
+import pathlib
 
-capnp.add_import_hook(['../src/capnp'])
+current_path = str(pathlib.Path(__file__).parent.resolve())
+
+print("working in path " + current_path)
+
+capnp.add_import_hook([current_path + '/../src/capnp'])
 
 import rospy
 from nav_msgs.msg import Odometry
