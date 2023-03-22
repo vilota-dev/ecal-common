@@ -25,4 +25,7 @@ struct Imu {
 
     intrinsic @4 :ImuInstrinsic;
     extrinsic @5 :import "sensorextrinsic.capnp".SensorExtrinsic;
+
+    # metadata
+    seqIncrement @6 :Int32; # should be 1 typically, greater than 1 means jump, negative means regression
 }

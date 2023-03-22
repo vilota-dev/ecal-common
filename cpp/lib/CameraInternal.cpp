@@ -338,6 +338,7 @@ void CameraInternal::imuCallbackInternal(const char* ecal_topic_name, ecal::Imu:
     ImuFrameData::Ptr imuMessage = std::make_shared<ImuFrameData>();
 
     imuMessage->seq = header.getSeq();
+    imuMessage->seqIncrement = ecal_msg.getSeqIncrement();
 
     if (m_lastSeqImu == 0) {
         // first time receiving message
@@ -353,6 +354,12 @@ void CameraInternal::imuCallbackInternal(const char* ecal_topic_name, ecal::Imu:
         }else if (imuMessage->lastSeq > imuMessage->seq) {
             std::cout << "error: imu message " << ecal_topic_name << " sequence regression, from " << imuMessage->lastSeq << " to " << imuMessage->seq << ", skipping " << std::endl;
             return;
+        }
+
+        if (imuMessage->lastSeq + imuMessage->seqIncrement != imuMessage->seq)
+        {
+            std::cout << "imu subscriber: missing packets in transmission, from last seq " << imuMessage->lastSeq <<
+                " to " << imuMessage->seq << ", expecting " << imuMessage->lastSeq + imuMessage->seqIncrement << std::endl;
         }
     }
 

@@ -41,6 +41,7 @@ include_directories(
       ../../src/capnp/header.capnp
       ../../src/capnp/vector3d.capnp
       ../../src/capnp/imu.capnp
+      ../../src/capnp/imulist.capnp
       ../../src/capnp/image.capnp
       ../../src/capnp/so3.capnp
       ../../src/capnp/se3.capnp
