@@ -157,7 +157,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('ecal_topic_in', nargs='?', help="topic of ecal", default=topic_ecal)
     parser.add_argument('ros_topic_out', nargs='?', help="topic of ros", default=topic_ros)
-    args = parser.parse_args()
+    args = parser.parse_known_args()
     
     # initialize eCAL API
     ecal_core.initialize(sys.argv, "test_odometry_sub")
