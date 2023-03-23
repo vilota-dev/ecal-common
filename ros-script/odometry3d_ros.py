@@ -181,12 +181,15 @@ class RosOdometryPublisher:
                 if self.use_monotonic:
                     self.tf_msg_odom_ned.header.stamp = rospy.Time.from_sec(time.monotonic())
                     self.tf_msg_base_link.header.stamp = rospy.Time.from_sec(time.monotonic())
+                    self.tf_msg_odom_nwu.header.stamp = rospy.Time.from_sec(time.monotonic())
                 else:
                     self.tf_msg_odom_ned.header.stamp = rospy.Time.now()
                     self.tf_msg_base_link.header.stamp = rospy.Time.now()
+                    self.tf_msg_odom_nwu.header.stamp = rospy.Time.now()
 
                 self.publish_static_tf(self.tf_msg_odom_ned)
                 self.publish_static_tf(self.tf_msg_base_link)
+                self.publish_static_tf(self.tf_msg_odom_nwu)
 
             ros_msg = Odometry();
             ros_msg.header.seq = odometryMsg.header.seq
