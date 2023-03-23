@@ -100,8 +100,9 @@ class RosOdometryPublisher:
                 print(f"velocityFrame = {odometryMsg.velocityFrame}")
                 self.first_message = False
 
-            print(f"position = {odometryMsg.pose.position.x}, {odometryMsg.pose.position.y}, {odometryMsg.pose.position.z}")
-            print(f"orientation = {odometryMsg.pose.orientation.w}, {odometryMsg.pose.orientation.x}, {odometryMsg.pose.orientation.y}, {odometryMsg.pose.orientation.z}")
+            if odometryMsg.header.seq % 100 == 0:
+                print(f"position = {odometryMsg.pose.position.x}, {odometryMsg.pose.position.y}, {odometryMsg.pose.position.z}")
+                print(f"orientation = {odometryMsg.pose.orientation.w}, {odometryMsg.pose.orientation.x}, {odometryMsg.pose.orientation.y}, {odometryMsg.pose.orientation.z}")
 
             ros_msg = Odometry();
             ros_msg.header.seq = odometryMsg.header.seq
@@ -152,7 +153,7 @@ def main():
     print("eCAL {} ({})\n".format(ecal_core.getversion(), ecal_core.getdate()))
 
     topic_ecal = "S0/vio_odom"
-    topic_ros = "S0/vio_odom"
+    topic_ros = "/S0/basalt/odom_ned"
 
     parser = argparse.ArgumentParser()
     parser.add_argument('ecal_topic_in', nargs='?', help="topic of ecal", default=topic_ecal)
