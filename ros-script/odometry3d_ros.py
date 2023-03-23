@@ -32,12 +32,18 @@ import odometry3d_capnp as eCALOdometry3d
 
 class RosOdometryPublisher:
 
-    def __init__(self, topic : str, use_monotonic : bool) -> None:
+    def publish_tf(self, tf_msg):
+        if not self.no_tf_publisher:
+                self.static_broadcaster.sendTransform(tf_msg)
+
+    def __init__(self, topic : str, use_monotonic : bool, no_tf_publisher : bool) -> None:
         self.first_message = True
         self.ros_odom_pub = rospy.Publisher(topic, Odometry, queue_size=10)
         self.use_monotonic = use_monotonic
+        self.no_tf_publisher = no_tf_publisher
 
         print(f"ecal-ros bridge using monotonic = {use_monotonic}")
+        print(f"ecal-ros bridge publishing tf = {not no_tf_publisher}")
 
         # static transforms
         self.static_broadcaster = tf2_ros.StaticTransformBroadcaster()
@@ -71,7 +77,7 @@ class RosOdometryPublisher:
 
             time.sleep(0.5)
 
-            self.static_broadcaster.sendTransform(tf_msg)
+            self.publish_tf(tf_msg)
 
             self.tf_msg_odom = tf_msg
 
@@ -81,7 +87,7 @@ class RosOdometryPublisher:
             tf_msg.header.frame_id = "base_link"
             tf_msg.child_frame_id = "base_link_frd"
 
-            self.static_broadcaster.sendTransform(tf_msg)
+            self.publish_tf(tf_msg)
 
             self.tf_msg_base_link = tf_msg
 
@@ -117,8 +123,8 @@ class RosOdometryPublisher:
                     self.tf_msg_odom.header.stamp = rospy.Time.now()
                     self.tf_msg_base_link.header.stamp = rospy.Time.now()
 
-                self.static_broadcaster.sendTransform(self.tf_msg_odom)
-                self.static_broadcaster.sendTransform(self.tf_msg_base_link)
+                self.publish_tf(self.tf_msg_odom)
+                self.publish_tf(self.tf_msg_base_link)
 
             ros_msg = Odometry();
             ros_msg.header.seq = odometryMsg.header.seq
@@ -164,7 +170,7 @@ class RosOdometryPublisher:
 
             tf_msg.transform.rotation = ros_msg.pose.pose.orientation
 
-            self.broadcaster.sendTransform(tf_msg)
+            self.publish_tf(tf_msg)
 
 
 def main():  
@@ -179,6 +185,7 @@ def main():
     parser.add_argument('ecal_topic_in', nargs='?', help="topic of ecal", default=topic_ecal)
     parser.add_argument('ros_topic_out', nargs='?', help="topic of ros", default=topic_ros)
     parser.add_argument('--monotonic_time', action="store_true")
+    parser.add_argument('--no_tf_publisher', action="store_true")
     args = parser.parse_known_args()[0]
     
     # initialize eCAL API
@@ -189,7 +196,7 @@ def main():
 
     rospy.init_node("ros_odometry_publisher")
 
-    ros_odometry_pub = RosOdometryPublisher(args.ros_topic_out, args.monotonic_time)
+    ros_odometry_pub = RosOdometryPublisher(args.ros_topic_out, args.monotonic_time, args.no_tf_publisher)
 
     # create subscriber and connect callback
     sub = ByteSubscriber(args.ecal_topic_in)
