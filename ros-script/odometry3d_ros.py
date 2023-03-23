@@ -32,9 +32,12 @@ import odometry3d_capnp as eCALOdometry3d
 
 class RosOdometryPublisher:
 
-    def __init__(self, topic : str) -> None:
+    def __init__(self, topic : str, use_monotonic : bool) -> None:
         self.first_message = True
         self.ros_odom_pub = rospy.Publisher(topic, Odometry, queue_size=10)
+        self.use_monotonic = use_monotonic
+
+        print(f"ecal-ros bridge using monotonic = {use_monotonic}")
 
         # static transforms
         self.static_broadcaster = tf2_ros.StaticTransformBroadcaster()
@@ -103,10 +106,16 @@ class RosOdometryPublisher:
             if odometryMsg.header.seq % 100 == 0:
                 print(f"position = {odometryMsg.pose.position.x}, {odometryMsg.pose.position.y}, {odometryMsg.pose.position.z}")
                 print(f"orientation = {odometryMsg.pose.orientation.w}, {odometryMsg.pose.orientation.x}, {odometryMsg.pose.orientation.y}, {odometryMsg.pose.orientation.z}")
+                self.static_broadcaster.sendTransform(self.tf_msg_odom)
+                self.static_broadcaster.sendTransform(self.tf_msg_base_link)
 
             ros_msg = Odometry();
             ros_msg.header.seq = odometryMsg.header.seq
-            ros_msg.header.stamp = rospy.Time.now() #.from_sec(odometryMsg.header.stamp / 1.0e9)
+
+            if self.use_monotonic:
+                ros_msg.header.stamp = rospy.Time.now() #.from_sec(odometryMsg.header.stamp / 1.0e9)
+            else:
+                ros_msg.header.stamp = rospy.Time.from_sec(odometryMsg.header.stamp / 1.0e9)
 
             if self.isNED:
                 ros_msg.header.frame_id = "odom_ned"
@@ -158,6 +167,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('ecal_topic_in', nargs='?', help="topic of ecal", default=topic_ecal)
     parser.add_argument('ros_topic_out', nargs='?', help="topic of ros", default=topic_ros)
+    parser.add_argument('--monotonic_time', action="store_true")
     args = parser.parse_known_args()[0]
     
     # initialize eCAL API
@@ -168,7 +178,7 @@ def main():
 
     rospy.init_node("ros_odometry_publisher")
 
-    ros_odometry_pub = RosOdometryPublisher(args.ros_topic_out)
+    ros_odometry_pub = RosOdometryPublisher(args.ros_topic_out, args.monotonic_time)
 
     # create subscriber and connect callback
     sub = ByteSubscriber(args.ecal_topic_in)
