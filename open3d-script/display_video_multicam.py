@@ -32,6 +32,7 @@ image_topics = []
 flag_dict = {}
 flag_dict['vio_status'] = False
 flag_dict['synced_status'] = False
+flag_dict['thumbnail_status'] = False
 
 class SyncedRecorder:
 
@@ -119,8 +120,11 @@ class ChooseWindow:
         self.cb_vio = gui.Checkbox("vio is on")
         self.panel_main.add_child(self.cb_vio)
 
-        self.cb_synced = gui.Checkbox("used synced image")
+        self.cb_synced = gui.Checkbox("used synced image (must choose for now)")
         self.panel_main.add_child(self.cb_synced)
+
+        self.cb_thumbnail = gui.Checkbox("thumbnail image")
+        self.panel_main.add_child(self.cb_thumbnail)
         
         self.window.add_child(self.panel_main) 
 
@@ -155,19 +159,32 @@ class ChooseWindow:
         return True  # False would cancel the close
 
     def _on_ok(self):
-
-        if self.cb_cama.checked:
-            image_topics.append("S0/cama")
-        if self.cb_camb.checked:
-            image_topics.append("S0/camb")        
-        if self.cb_camc.checked:
-            image_topics.append("S0/camc")        
-        if self.cb_camd.checked:
-            image_topics.append("S0/camd")
+        if self.cb_thumbnail.checked:
+            flag_dict['thumbnail_status'] = True
+            if self.cb_cama.checked:
+                image_topics.append("S0/thumbnail/cama")
+            if self.cb_camb.checked:
+                image_topics.append("S0/thumbnail/camb")        
+            if self.cb_camc.checked:
+                image_topics.append("S0/thumbnail/camc")        
+            if self.cb_camd.checked:
+                image_topics.append("S0/thumbnail/camd")
+        else:
+            if self.cb_cama.checked:
+                image_topics.append("S0/cama")
+            if self.cb_camb.checked:
+                image_topics.append("S0/camb")        
+            if self.cb_camc.checked:
+                image_topics.append("S0/camc")        
+            if self.cb_camd.checked:
+                image_topics.append("S0/camd")
+        
         if self.cb_vio.checked:
             flag_dict['vio_status'] = True
+        
         if self.cb_synced.checked:
             flag_dict['synced_status'] = True
+
         
         print(f"Subscribing to {image_topics}")
 
@@ -385,8 +402,6 @@ def read_img(window):
     # SET PROCESS STATE
     ecal_core.set_process_state(1, 1, "I feel good")
 
-    # print(type(ecal_core.mon_monitoring()[1]))
-
     # srt up vio sub subscriber
     if (flag_dict['vio_status']):
         vio_sub = VioSubscriber("S0/vio_odom")
@@ -395,25 +410,27 @@ def read_img(window):
         synced_recorder = SyncedRecorder(image_topics)
         synced_recorder.image_sub.rolling = True   # ensure self.image_sub.pop_sync_queue() works
     else:
+        print("unsynced image is not implemented")
+        return
         # cama_tn_sub = ImageSubscriber("S0/thumbnail/cama")
-        camb_tn_sub = ImageSubscriber("S0/thumbnail/camb")
-        camc_tn_sub = ImageSubscriber("S0/thumbnail/camc")
-        camd_tn_sub = ImageSubscriber("S0/thumbnail/camd")
+        # camb_tn_sub = ImageSubscriber("S0/thumbnail/camb")
+        # camc_tn_sub = ImageSubscriber("S0/thumbnail/camc")
+        # camd_tn_sub = ImageSubscriber("S0/thumbnail/camd")
 
 
 
 
     def update_frame(imageName,img_ndarray):
-        if(imageName == 'S0/cama' and window.cb_cama.checked):
+        if(('cama' in imageName)  and window.cb_cama.checked):
             window.rgb_widget_1.update_image(o3d.geometry.Image(img_ndarray))
 
-        if(imageName == 'S0/camb' and window.cb_camb.checked):
+        if(('camb' in imageName)  and window.cb_camb.checked):
             window.rgb_widget_2.update_image(o3d.geometry.Image(img_ndarray))
         
-        if(imageName == 'S0/camc' and window.cb_camc.checked):
+        if(('camc' in imageName) and window.cb_camc.checked):
             window.rgb_widget_3.update_image(o3d.geometry.Image(img_ndarray))
         
-        if(imageName == 'S0/camd' and window.cb_camd.checked):
+        if(('camd' in imageName)  and window.cb_camd.checked):
             window.rgb_widget_4.update_image(o3d.geometry.Image(img_ndarray))
 
 
