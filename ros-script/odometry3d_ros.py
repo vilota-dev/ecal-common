@@ -83,6 +83,7 @@ class RosOdometryPublisher:
 
         print(f"ecal-ros bridge using monotonic = {use_monotonic}")
         print(f"ecal-ros bridge publishing tf = {not no_tf_publisher}")
+        print(f"ecal-ros bridge publish topic = {topic}")
 
         # static transforms
         self.static_broadcaster = tf2_ros.StaticTransformBroadcaster()
@@ -218,14 +219,17 @@ def main():
     print("eCAL {} ({})\n".format(ecal_core.getversion(), ecal_core.getdate()))
 
     topic_ecal = "S0/vio_odom"
-    topic_ros = "/S0/basalt/odom_ned"
+    topic_ros = "/basalt/odom_ned"
 
     parser = argparse.ArgumentParser()
     parser.add_argument('ecal_topic_in', nargs='?', help="topic of ecal", default=topic_ecal)
     parser.add_argument('ros_topic_out', nargs='?', help="topic of ros", default=topic_ros)
+    parser.add_argument('--ros_tf_prefix', type=str, default='S0')
     parser.add_argument('--monotonic_time', action="store_true")
     parser.add_argument('--no_tf_publisher', action="store_true")
     args = parser.parse_known_args()[0]
+
+    args.ros_topic_out = "/" + args.ros_tf_prefix + args.ros_topic_out
     
     # initialize eCAL API
     ecal_core.initialize(sys.argv, "test_odometry_sub")
@@ -238,6 +242,7 @@ def main():
     ros_odometry_pub = RosOdometryPublisher(args.ros_topic_out, args.monotonic_time, args.no_tf_publisher)
 
     # create subscriber and connect callback
+    print(f"ecal-ros bridge subscribe topic: {args.ecal_topic_in}")
     sub = ByteSubscriber(args.ecal_topic_in)
     sub.set_callback(ros_odometry_pub.callback)
     
