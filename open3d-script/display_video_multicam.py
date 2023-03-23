@@ -24,7 +24,7 @@ import open3d.visualization.gui as gui
 
 from PIL import Image
 
-from utils import SyncedImageSubscriber, add_ui_on_ndarray, VioSubscriber
+from utils import SyncedImageSubscriber, AsyncedImageSubscriber, VioSubscriber, add_ui_on_ndarray
 
 isMacOS = (platform.system() == "Darwin")
 
@@ -34,52 +34,6 @@ flag_dict['vio_status'] = False
 flag_dict['synced_status'] = False
 flag_dict['thumbnail_status'] = False
 
-class SyncedRecorder:
-
-    def __init__(self, image_topics):
-
-        self.image_sub = SyncedImageSubscriber(image_topics)
-
-
-
-class ImageSubscriber:
-
-    def __init__(self, image_topic):
-
-        self.image_sub = ByteSubscriber(image_topic)
-        self.all_display = ""
-        self.img_ndarray = []
-        self.metadata = None
-        self.image_sub.set_callback(self._image_callback)
-
-    def _image_callback(self, topic_name, msg, ts):
-
-        # need to remove the .decode() function within the Python API of ecal.core.subscriber StringSubscriber
-        with eCALImage.Image.from_bytes(msg) as imageMsg:
-
-            if (imageMsg.encoding == "mono8"):
-                self.metadata = imageMsg
-                # self.img_ndarray = np.frombuffer(imageMsg.data, dtype=np.uint8)
-                # self.img_ndarray = self.img_ndarray.reshape((imageMsg.height, imageMsg.width, 1))
-                
-                # expTime_display = f"expTime = {imageMsg.exposureUSec}" 
-                # sensIso_display = f"sensIso = {imageMsg.gain}" 
-                # latencyDevice_display = f"device latency = {imageMsg.header.latencyDevice / 1e6 :.2f} ms" 
-                # host_latency = time.monotonic() *1e9 - imageMsg.header.stamp 
-                # latencyHost_display = f"host latency = {host_latency / 1e6 :.2f} ms" 
-
-                # self.all_display = imageName + '\n' + expTime_display + '\n' + sensIso_display + '\n' + latencyDevice_display + '\n' + latencyHost_display 
-                
-                # dim = (512, 320) #width height
-                # self.img_ndarray = cv2.resize(self.img_ndarray, dim, interpolation = cv2.INTER_NEAREST)
-
-                # #convert numpy array to 3 channel
-                # self.img_ndarray = np.repeat(self.img_ndarray.reshape(dim[1], dim[0], 1), 3, axis=2)         
-                    
-                
-                # imshow_map[topic_name + " mono8"] = mat
-            else:
-                raise RuntimeError("unknown encoding: " + imageMsg.encoding)
 
 class ChooseWindow:
 
@@ -90,7 +44,7 @@ class ChooseWindow:
 
         # CONFIGURE WINDOW
         self.window = gui.Application.instance.create_window(
-            "Camera confirm", 500, 300)
+            "Camera confirm", 500, 350)
         self.window.set_on_layout(self._on_layout)
         self.window.set_on_close(self._on_close) 
         
@@ -101,7 +55,7 @@ class ChooseWindow:
         
         self.panel_main = gui.Vert(0.5 * em, gui.Margins(margin))
 
-        self.label_description = gui.Label("Please choose the avaliable camera and click 'Ok'.")
+        self.label_description = gui.Label("Please choose the avaliable camera.")
         self.label_description.text_color = gui.Color(1.0, 0.5, 0.0)
         self.panel_main.add_child(self.label_description)
 
@@ -117,13 +71,17 @@ class ChooseWindow:
         self.cb_camd = gui.Checkbox("cam_d")
         self.panel_main.add_child(self.cb_camd)
 
+        self.label_description = gui.Label("Please choose the specific features.")
+        self.label_description.text_color = gui.Color(1.0, 0.5, 0.0)
+        self.panel_main.add_child(self.label_description)
+
         self.cb_vio = gui.Checkbox("vio is on")
         self.panel_main.add_child(self.cb_vio)
 
-        self.cb_synced = gui.Checkbox("used synced image (must choose for now)")
+        self.cb_synced = gui.Checkbox("use synced image (default asynced)")
         self.panel_main.add_child(self.cb_synced)
 
-        self.cb_thumbnail = gui.Checkbox("thumbnail image")
+        self.cb_thumbnail = gui.Checkbox("use thumbnail image (default normal)")
         self.panel_main.add_child(self.cb_thumbnail)
         
         self.window.add_child(self.panel_main) 
@@ -164,18 +122,18 @@ class ChooseWindow:
             if self.cb_cama.checked:
                 image_topics.append("S0/thumbnail/cama")
             if self.cb_camb.checked:
-                image_topics.append("S0/thumbnail/camb")        
+                image_topics.append("S0/thumbnail/camb") 
             if self.cb_camc.checked:
-                image_topics.append("S0/thumbnail/camc")        
+                image_topics.append("S0/thumbnail/camc")
             if self.cb_camd.checked:
                 image_topics.append("S0/thumbnail/camd")
         else:
             if self.cb_cama.checked:
                 image_topics.append("S0/cama")
             if self.cb_camb.checked:
-                image_topics.append("S0/camb")        
+                image_topics.append("S0/camb") 
             if self.cb_camc.checked:
-                image_topics.append("S0/camc")        
+                image_topics.append("S0/camc")
             if self.cb_camd.checked:
                 image_topics.append("S0/camd")
         
@@ -291,7 +249,14 @@ class VideoWindow:
         switch_latencyHost = gui.ToggleSwitch("Display latencyHost")
         switch_latencyHost.set_on_clicked(self._on_switch_latencyHost)
         self.collapse.add_child(switch_latencyHost)
+            
+        self.label_info = gui.Label("Streaming mode")
+        self.label_info.text_color = gui.Color(1.0, 0.5, 0.0)
+        self.collapse.add_child(self.label_info)
 
+        self.synced_label = gui.Label("")
+        self.collapse.add_child(self.synced_label)
+        
         self.label_info = gui.Label("Vio Information")
         self.label_info.text_color = gui.Color(1.0, 0.5, 0.0)
         self.collapse.add_child(self.label_info)
@@ -402,35 +367,37 @@ def read_img(window):
     # SET PROCESS STATE
     ecal_core.set_process_state(1, 1, "I feel good")
 
-    # srt up vio sub subscriber
+    # set up vio subscriber
     if (flag_dict['vio_status']):
         vio_sub = VioSubscriber("S0/vio_odom")
-
-    if (flag_dict['synced_status']):
-        synced_recorder = SyncedRecorder(image_topics)
-        synced_recorder.image_sub.rolling = True   # ensure self.image_sub.pop_sync_queue() works
     else:
-        print("unsynced image is not implemented")
-        return
-        # cama_tn_sub = ImageSubscriber("S0/thumbnail/cama")
-        # camb_tn_sub = ImageSubscriber("S0/thumbnail/camb")
-        # camc_tn_sub = ImageSubscriber("S0/thumbnail/camc")
-        # camd_tn_sub = ImageSubscriber("S0/thumbnail/camd")
+        window.proxy_vio.set_widget(gui.Label("vio is not on"))
+    
+    # set up image subscriber
+    if (flag_dict['synced_status']):
+        window.synced_label.text = "Synced images"
+        synced_recorder = SyncedImageSubscriber(image_topics)
+        synced_recorder.rolling = True
+    else:
+        window.synced_label.text = "Asynced images"
+        asynced_recorder = AsyncedImageSubscriber(image_topics)
+        asynced_recorder.rolling = True
 
 
+ 
 
 
     def update_frame(imageName,img_ndarray):
-        if(('cama' in imageName)  and window.cb_cama.checked):
+        if(('cama' in imageName) and window.cb_cama.checked):
             window.rgb_widget_1.update_image(o3d.geometry.Image(img_ndarray))
 
-        if(('camb' in imageName)  and window.cb_camb.checked):
+        if(('camb' in imageName) and window.cb_camb.checked):
             window.rgb_widget_2.update_image(o3d.geometry.Image(img_ndarray))
         
         if(('camc' in imageName) and window.cb_camc.checked):
             window.rgb_widget_3.update_image(o3d.geometry.Image(img_ndarray))
         
-        if(('camd' in imageName)  and window.cb_camd.checked):
+        if(('camd' in imageName) and window.cb_camd.checked):
             window.rgb_widget_4.update_image(o3d.geometry.Image(img_ndarray))
 
 
@@ -452,14 +419,9 @@ def read_img(window):
 
         # synced mode
         if (flag_dict['synced_status']):
-            ecal_images = synced_recorder.image_sub.pop_sync_queue()
+            ecal_images = synced_recorder.pop_sync_queue()
         else:
-            # ecal_images = {}
-            # ecal_images["S0/camb"] = camb_tn_sub.metadata
-            # ecal_images["S0/camb"] = camc_tn_sub.metadata
-            # ecal_images["S0/camb"] = camd_tn_sub.metadata
-            print("have not implemented this function")
-            return
+            ecal_images = asynced_recorder.pop_async_queue()
 
         for imageName in ecal_images:
 
@@ -497,20 +459,19 @@ def read_img(window):
             if not window.is_done:
 
                 update_frame(imageName, img_ndarray)
-                if(imageName == 'S0/cama' and window.cb_cama.checked):
+                if(('cama' in imageName) and window.cb_cama.checked):
                     update_proxy(window.proxy_1,all_display)
-                if(imageName == 'S0/camb' and window.cb_camb.checked):
+                if(('camb' in imageName) and window.cb_camb.checked):
                     update_proxy(window.proxy_2,all_display)
-                if(imageName == 'S0/camc' and window.cb_camc.checked):
+                if(('camc' in imageName) and window.cb_camc.checked):
                     update_proxy(window.proxy_3,all_display)
-                if(imageName == 'S0/camd' and window.cb_camd.checked):
+                if(('camd' in imageName) and window.cb_camd.checked):
                     update_proxy(window.proxy_4,all_display)
                 
         if not window.is_done:
             if flag_dict['vio_status']:
                 update_proxy(window.proxy_vio, vio_sub.vio_msg)
-            else:
-                update_proxy(window.proxy_vio, "vio is not on")
+
 
         window.window.post_redraw()
 
@@ -531,7 +492,7 @@ def main():
     
     choose_app.run()    
 
-    # main app
+    # initialised main app
     app = gui.Application.instance
     app.initialize()
     
@@ -543,6 +504,7 @@ def main():
     
     time.sleep(3)
     
+    # run main app
     app.run()
     
         

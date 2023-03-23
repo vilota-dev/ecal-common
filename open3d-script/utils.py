@@ -209,6 +209,136 @@ class SyncedImageSubscriber:
 
 
 
+class AsyncedImageSubscriber:
+    def __init__(self, topics):
+
+        self.subscribers = {}
+        self.queues = {} # store individual incoming images
+        self.asynced_queue = queue.Queue(150) # store properly synced images
+        self.latest = None
+        self.size = len(topics)
+
+        # self.warn_drop = False
+
+        self.rolling = False
+
+        self.assemble = {}
+
+        # self.lock = Lock()
+
+        for topic in topics:
+            print(f"subscribing to image topic {topic}")
+            sub = self.subscribers[topic] = ByteSubscriber(topic)
+            sub.set_callback(self.callback)
+
+            self.queues[topic] = queue.Queue(10)
+
+
+    def queue_update(self):
+
+        # with self.lock:
+
+        for queueName in self.queues:
+
+            m_queue = self.queues[queueName]
+
+            # already in assemble, no need to get from queue
+            if queueName in self.assemble:
+                continue
+
+            while True:
+
+                if m_queue.empty():
+                    return
+
+                imageMsg = m_queue.get()
+                self.assemble[queueName] = imageMsg
+                
+
+        
+        # check for full assembly
+
+        if len(self.assemble) == self.size:
+            
+            self.latest = self.assemble
+
+            if self.rolling:
+                try:
+                    self.asynced_queue.put(self.assemble, block=False)
+                except queue.Full:
+                    print("image queue full")
+                    self.asynced_queue.get()
+                    self.asynced_queue.put(self.assemble)
+            
+
+            self.assemble = {}
+
+
+
+                
+
+    def callback(self, topic_name, msg, ts):
+            # need to remove the .decode() function within the Python API of ecal.core.subscriber StringSubscriber
+        with eCALImage.Image.from_bytes(msg) as imageMsg:
+
+            self.queues[topic_name].put(imageMsg)
+
+            self.queue_update()
+
+    def pop_latest(self):
+
+        # with self.lock:
+
+        if self.latest == None:
+            return {}
+        else:
+            return self.latest
+
+    def pop_async_queue(self):
+        # not protected for read
+
+        return self.asynced_queue.get()
+
+        # try:
+        #     return self.synced_queue.get(False)
+        # except queue.Empty:
+        #     return None
+
+
+
+class VioSubscriber:
+
+    def __init__(self, vio_topic):
+
+        self.vio_sub = ByteSubscriber(vio_topic)
+        self.vio_msg = ""
+        self.vio_sub.set_callback(self._vio_callback)
+
+    def _vio_callback(self, topic_name, msg, time):
+
+        # need to remove the .decode() function within the Python API of ecal.core.subscriber ByteSubscriber
+        
+        with eCALOdometry3d.Odometry3d.from_bytes(msg) as odometryMsg:
+
+            # if first_message:
+            #     print(f"bodyFrame = {odometryMsg.bodyFrame}")
+            #     print(f"referenceFrame = {odometryMsg.referenceFrame}")
+            #     print(f"velocityFrame = {odometryMsg.velocityFrame}")
+            #     first_message = False
+
+            position_msg = f"position: \n {odometryMsg.pose.position.x:.4f}, {odometryMsg.pose.position.y:.4f}, {odometryMsg.pose.position.z:.4f}"
+            orientation_msg = f"orientation: \n  {odometryMsg.pose.orientation.w:.4f}, {odometryMsg.pose.orientation.x:.4f}, {odometryMsg.pose.orientation.y:.4f}, {odometryMsg.pose.orientation.z:.4f}"
+            
+            device_latency_msg = f"device latency = {odometryMsg.header.latencyDevice / 1e6 : .2f} ms"
+            
+            vio_host_latency = monotonic() *1e9 - odometryMsg.header.stamp 
+            host_latency_msg = f"host latency = {vio_host_latency / 1e6 :.2f} ms"
+            
+            self.vio_msg = position_msg + "\n" + orientation_msg + "\n" + device_latency_msg + "\n" + host_latency_msg
+
+
+
+
 def image_resize(image, width = None, height = None, inter = cv2.INTER_AREA):
     # initialize the dimensions of the image to be resized and
     # grab the image size
@@ -241,36 +371,6 @@ def image_resize(image, width = None, height = None, inter = cv2.INTER_AREA):
     return resized
 
 
-class VioSubscriber:
-
-    def __init__(self, vio_topic):
-
-        self.vio_sub = ByteSubscriber(vio_topic)
-        self.vio_msg = ""
-        self.vio_sub.set_callback(self._vio_callback)
-
-    def _vio_callback(self, topic_name, msg, time):
-
-        # need to remove the .decode() function within the Python API of ecal.core.subscriber ByteSubscriber
-        
-        with eCALOdometry3d.Odometry3d.from_bytes(msg) as odometryMsg:
-
-            # if first_message:
-            #     print(f"bodyFrame = {odometryMsg.bodyFrame}")
-            #     print(f"referenceFrame = {odometryMsg.referenceFrame}")
-            #     print(f"velocityFrame = {odometryMsg.velocityFrame}")
-            #     first_message = False
-
-            position_msg = f"position: \n {odometryMsg.pose.position.x:.4f}, {odometryMsg.pose.position.y:.4f}, {odometryMsg.pose.position.z:.4f}"
-            orientation_msg = f"orientation: \n  {odometryMsg.pose.orientation.w:.4f}, {odometryMsg.pose.orientation.x:.4f}, {odometryMsg.pose.orientation.y:.4f}, {odometryMsg.pose.orientation.z:.4f}"
-            
-
-            device_latency_msg = f"device latency = {odometryMsg.header.latencyDevice / 1e6 : .2f} ms"
-            
-            vio_host_latency = monotonic() *1e9 - odometryMsg.header.stamp 
-            host_latency_msg = f"host latency = {vio_host_latency / 1e6 :.2f} ms"
-            
-            self.vio_msg = position_msg + "\n" + orientation_msg + "\n" + device_latency_msg + "\n" + host_latency_msg
 
 
 def add_ui_on_ndarray(img_ndarray, exposureUSec, gain, latencyDevice_display, latencyHost_display, expTime_display_flag, sensIso_display_flag, latencyDevice_display_flag,latencyHost_display_flag):
