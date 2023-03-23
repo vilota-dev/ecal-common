@@ -80,7 +80,7 @@ class RosOdometryPublisher:
         self.ros_odom_pub = rospy.Publisher(topic, Odometry, queue_size=10)
         self.use_monotonic = use_monotonic
         self.no_tf_publisher = no_tf_publisher
-        self.ros_tf_prefix = "/" + ros_tf_prefix + "/"
+        self.ros_tf_prefix = ros_tf_prefix + "/"
 
         print(f"ecal-ros bridge using monotonic = {use_monotonic}")
         print(f"ecal-ros bridge publishing tf = {not no_tf_publisher}")
