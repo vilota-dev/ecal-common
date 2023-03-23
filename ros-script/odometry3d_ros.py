@@ -75,15 +75,16 @@ class RosOdometryPublisher:
         if not self.no_tf_publisher:
                 self.static_broadcaster.sendTransform(tf_msg)
 
-    def __init__(self, topic : str, use_monotonic : bool, no_tf_publisher : bool) -> None:
+    def __init__(self, ros_tf_prefix : str, topic : str, use_monotonic : bool, no_tf_publisher : bool) -> None:
         self.first_message = True
         self.ros_odom_pub = rospy.Publisher(topic, Odometry, queue_size=10)
         self.use_monotonic = use_monotonic
         self.no_tf_publisher = no_tf_publisher
+        self.ros_tf_prefix = "/" + ros_tf_prefix + "/"
 
         print(f"ecal-ros bridge using monotonic = {use_monotonic}")
         print(f"ecal-ros bridge publishing tf = {not no_tf_publisher}")
-        print(f"ecal-ros bridge publish topic = {topic}")
+        print(f"ecal-ros bridge publish topic = {topic}, with tf prefix {self.ros_tf_prefix}")
 
         # static transforms
         self.static_broadcaster = tf2_ros.StaticTransformBroadcaster()
@@ -97,8 +98,8 @@ class RosOdometryPublisher:
                 tf_msg.header.stamp = rospy.Time.from_sec(time.monotonic())
             else:
                 tf_msg.header.stamp = rospy.Time.now()
-            tf_msg.header.frame_id = "odom"
-            tf_msg.child_frame_id = "odom_ned"
+            tf_msg.header.frame_id = self.ros_tf_prefix + "odom"
+            tf_msg.child_frame_id = self.ros_tf_prefix + "odom_ned"
 
             tf_msg.transform.translation.x = 0
             tf_msg.transform.translation.y = 0
@@ -124,8 +125,8 @@ class RosOdometryPublisher:
             time.sleep(0.1)
 
 
-            tf_msg.header.frame_id = "base_link"
-            tf_msg.child_frame_id = "base_link_frd"
+            tf_msg.header.frame_id = self.ros_tf_prefix + "base_link"
+            tf_msg.child_frame_id = self.ros_tf_prefix + "base_link_frd"
 
             self.publish_tf(tf_msg)
 
@@ -175,11 +176,11 @@ class RosOdometryPublisher:
                 ros_msg.header.stamp = rospy.Time.now() #.from_sec(odometryMsg.header.stamp / 1.0e9)
 
             if self.isNED:
-                ros_msg.header.frame_id = "odom_ned"
-                ros_msg.child_frame_id = "base_link_frd"
+                ros_msg.header.frame_id = self.ros_tf_prefix + "odom_ned"
+                ros_msg.child_frame_id = self.ros_tf_prefix + "base_link_frd"
             else:
-                ros_msg.header.frame_id = "odom"
-                ros_msg.child_frame_id = "base_link"
+                ros_msg.header.frame_id = self.ros_tf_prefix + "odom"
+                ros_msg.child_frame_id = self.ros_tf_prefix + "base_link"
 
             ros_msg.pose.pose.position.x = odometryMsg.pose.position.x
             ros_msg.pose.pose.position.y = odometryMsg.pose.position.y
@@ -198,11 +199,11 @@ class RosOdometryPublisher:
             tf_msg.header.stamp = ros_msg.header.stamp
 
             if self.isNED:
-                tf_msg.header.frame_id = "odom_ned"
-                tf_msg.child_frame_id = "base_link_frd"
+                tf_msg.header.frame_id = self.ros_tf_prefix + "odom_ned"
+                tf_msg.child_frame_id = self.ros_tf_prefix + "base_link_frd"
             else:
-                tf_msg.header.frame_id = "odom"
-                tf_msg.child_frame_id = "base_link"
+                tf_msg.header.frame_id = self.ros_tf_prefix + "odom"
+                tf_msg.child_frame_id = self.ros_tf_prefix + "base_link"
 
             tf_msg.transform.translation.x = odometryMsg.pose.position.x
             tf_msg.transform.translation.y = odometryMsg.pose.position.y
@@ -239,7 +240,7 @@ def main():
 
     rospy.init_node("ros_odometry_publisher")
 
-    ros_odometry_pub = RosOdometryPublisher(args.ros_topic_out, args.monotonic_time, args.no_tf_publisher)
+    ros_odometry_pub = RosOdometryPublisher(args.ros_tf_prefix, args.ros_topic_out, args.monotonic_time, args.no_tf_publisher)
 
     # create subscriber and connect callback
     print(f"ecal-ros bridge subscribe topic: {args.ecal_topic_in}")
