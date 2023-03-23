@@ -58,8 +58,8 @@ add_library(ecal_camera
 target_include_directories(ecal_camera
   INTERFACE ../include)
 target_link_libraries(ecal_camera 
-  PUBLIC ${OpenCV_LIBS}
-  PRIVATE Threads::Threads CapnProto::capnp eCAL::core)
+  PUBLIC ${OpenCV_LIBS} eCAL::core
+  PRIVATE Threads::Threads CapnProto::capnp)
 
 # alias will make public dependencies go through
 add_library(ecal_camera::ecal_camera ALIAS ecal_camera)

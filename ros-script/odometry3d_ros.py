@@ -157,7 +157,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('ecal_topic_in', nargs='?', help="topic of ecal", default=topic_ecal)
     parser.add_argument('ros_topic_out', nargs='?', help="topic of ros", default=topic_ros)
-    args = parser.parse_known_args()
+    args = parser.parse_known_args()[0]
     
     # initialize eCAL API
     ecal_core.initialize(sys.argv, "test_odometry_sub")
@@ -167,10 +167,10 @@ def main():
 
     rospy.init_node("ros_odometry_publisher")
 
-    ros_odometry_pub = RosOdometryPublisher(topic_ros)
+    ros_odometry_pub = RosOdometryPublisher(args.ros_topic_out)
 
     # create subscriber and connect callback
-    sub = ByteSubscriber(topic_ecal)
+    sub = ByteSubscriber(args.ecal_topic_in)
     sub.set_callback(ros_odometry_pub.callback)
     
     # idle main thread
