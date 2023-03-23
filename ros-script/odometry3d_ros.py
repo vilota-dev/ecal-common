@@ -47,7 +47,10 @@ class RosOdometryPublisher:
             self.isNED = True
 
             tf_msg = TransformStamped()
-            tf_msg.header.stamp = rospy.Time.now()
+            if self.use_monotonic:
+                tf_msg.header.stamp = rospy.Time.from_sec(time.monotonic())
+            else:
+                tf_msg.header.stamp = rospy.Time.now()
             tf_msg.header.frame_id = "odom"
             tf_msg.child_frame_id = "odom_ned"
 
@@ -74,7 +77,6 @@ class RosOdometryPublisher:
 
             time.sleep(0.1)
 
-            tf_msg.header.stamp = rospy.Time.now()
 
             tf_msg.header.frame_id = "base_link"
             tf_msg.child_frame_id = "base_link_frd"
@@ -88,14 +90,11 @@ class RosOdometryPublisher:
             self.isNED = False
         
 
-    def callback(self, topic_name, msg, time):
+    def callback(self, topic_name, msg, time_ecal):
 
         # need to remove the .decode() function within the Python API of ecal.core.subscriber ByteSubscriber
         
         with eCALOdometry3d.Odometry3d.from_bytes(msg) as odometryMsg:
-            print(f"seq = {odometryMsg.header.seq}")
-            print(f"latency device = {odometryMsg.header.latencyDevice / 1e6} ms")
-            print(f"latency host = {odometryMsg.header.latencyHost / 1e6} ms")
 
             if self.first_message:
                 print(f"bodyFrame = {odometryMsg.bodyFrame}")
@@ -104,8 +103,20 @@ class RosOdometryPublisher:
                 self.first_message = False
 
             if odometryMsg.header.seq % 100 == 0:
+                print(f"seq = {odometryMsg.header.seq}")
+                print(f"latency device = {odometryMsg.header.latencyDevice / 1e6} ms")
+                print(f"latency host = {odometryMsg.header.latencyHost / 1e6} ms")
                 print(f"position = {odometryMsg.pose.position.x}, {odometryMsg.pose.position.y}, {odometryMsg.pose.position.z}")
                 print(f"orientation = {odometryMsg.pose.orientation.w}, {odometryMsg.pose.orientation.x}, {odometryMsg.pose.orientation.y}, {odometryMsg.pose.orientation.z}")
+                
+
+                if self.use_monotonic:
+                    self.tf_msg_odom.header.stamp = rospy.Time.from_sec(time.monotonic())
+                    self.tf_msg_base_link.header.stamp = rospy.Time.from_sec(time.monotonic())
+                else:
+                    self.tf_msg_odom.header.stamp = rospy.Time.now()
+                    self.tf_msg_base_link.header.stamp = rospy.Time.now()
+
                 self.static_broadcaster.sendTransform(self.tf_msg_odom)
                 self.static_broadcaster.sendTransform(self.tf_msg_base_link)
 
@@ -113,9 +124,9 @@ class RosOdometryPublisher:
             ros_msg.header.seq = odometryMsg.header.seq
 
             if self.use_monotonic:
-                ros_msg.header.stamp = rospy.Time.now() #.from_sec(odometryMsg.header.stamp / 1.0e9)
-            else:
                 ros_msg.header.stamp = rospy.Time.from_sec(odometryMsg.header.stamp / 1.0e9)
+            else:
+                ros_msg.header.stamp = rospy.Time.now() #.from_sec(odometryMsg.header.stamp / 1.0e9)
 
             if self.isNED:
                 ros_msg.header.frame_id = "odom_ned"
@@ -138,7 +149,7 @@ class RosOdometryPublisher:
             # publish
 
             tf_msg = TransformStamped()
-            tf_msg.header.stamp = rospy.Time.now()
+            tf_msg.header.stamp = ros_msg.header.stamp
 
             if self.isNED:
                 tf_msg.header.frame_id = "odom_ned"
