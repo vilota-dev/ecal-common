@@ -73,6 +73,10 @@ class RosOdometryPublisher:
 
     def publish_tf(self, tf_msg):
         if not self.no_tf_publisher:
+                self.broadcaster.sendTransform(tf_msg)
+
+    def publish_static_tf(self, tf_msg):
+        if not self.no_tf_publisher:
                 self.static_broadcaster.sendTransform(tf_msg)
 
     def __init__(self, ros_tf_prefix : str, topic : str, use_monotonic : bool, no_tf_publisher : bool) -> None:
@@ -92,49 +96,66 @@ class RosOdometryPublisher:
 
         if topic.endswith("_ned"):
             self.isNED = True
-
-            tf_msg = TransformStamped()
-            if self.use_monotonic:
-                tf_msg.header.stamp = rospy.Time.from_sec(time.monotonic())
-            else:
-                tf_msg.header.stamp = rospy.Time.now()
-            tf_msg.header.frame_id = self.ros_tf_prefix + "odom"
-            tf_msg.child_frame_id = self.ros_tf_prefix + "odom_ned"
-
-            tf_msg.transform.translation.x = 0
-            tf_msg.transform.translation.y = 0
-            tf_msg.transform.translation.z = 0
-
-            # R_ned_nwu = np.array ([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
-            T_nwu_ned = np.identity(4)
-            R_nwu_ned = np.array ([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
-            T_nwu_ned[:3, :3] = R_nwu_ned
-            quat = tf.transformations.quaternion_from_matrix(T_nwu_ned)
-
-            tf_msg.transform.rotation.x = quat[0]
-            tf_msg.transform.rotation.y = quat[1]
-            tf_msg.transform.rotation.z = quat[2]
-            tf_msg.transform.rotation.w = quat[3]
-
-            time.sleep(0.5)
-
-            self.publish_tf(tf_msg)
-
-            self.tf_msg_odom = tf_msg
-
-            time.sleep(0.1)
-
-
-            tf_msg.header.frame_id = self.ros_tf_prefix + "base_link"
-            tf_msg.child_frame_id = self.ros_tf_prefix + "base_link_frd"
-
-            self.publish_tf(tf_msg)
-
-            self.tf_msg_base_link = tf_msg
-
-
         else:
             self.isNED = False
+
+        self.tf_msg_odom_ned = TransformStamped()
+        if self.use_monotonic:
+            self.tf_msg_odom_ned.header.stamp = rospy.Time.from_sec(time.monotonic())
+        else:
+            self.tf_msg_odom_ned.header.stamp = rospy.Time.now()
+        self.tf_msg_odom_ned.header.frame_id = self.ros_tf_prefix + "odom"
+        self.tf_msg_odom_ned.child_frame_id = self.ros_tf_prefix + "odom_ned"
+
+        self.tf_msg_odom_ned.transform.translation.x = 0
+        self.tf_msg_odom_ned.transform.translation.y = 0
+        self.tf_msg_odom_ned.transform.translation.z = 0
+
+        # R_ned_nwu = np.array ([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+        T_nwu_ned = np.identity(4)
+        R_nwu_ned = np.array ([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+        T_nwu_ned[:3, :3] = R_nwu_ned
+        quat = tf.transformations.quaternion_from_matrix(T_nwu_ned)
+
+        self.tf_msg_odom_ned.transform.rotation.x = quat[0]
+        self.tf_msg_odom_ned.transform.rotation.y = quat[1]
+        self.tf_msg_odom_ned.transform.rotation.z = quat[2]
+        self.tf_msg_odom_ned.transform.rotation.w = quat[3]
+
+        time.sleep(0.5)
+
+        self.publish_static_tf(self.tf_msg_odom_ned)
+        
+
+        time.sleep(0.1)
+
+        self.tf_msg_base_link = TransformStamped()
+        self.tf_msg_base_link.header.stamp = self.tf_msg_odom_ned.header.stamp
+        self.tf_msg_base_link.transform = self.tf_msg_odom_ned.transform
+
+        self.tf_msg_base_link.header.frame_id = self.ros_tf_prefix + "base_link"
+        self.tf_msg_base_link.child_frame_id = self.ros_tf_prefix + "base_link_frd"
+
+        self.publish_static_tf(self.tf_msg_base_link)
+
+        self.tf_msg_odom_nwu = TransformStamped()
+        self.tf_msg_odom_nwu.header.stamp = self.tf_msg_odom_ned.header.stamp
+
+        self.tf_msg_odom_nwu.header.frame_id = self.ros_tf_prefix + "odom"
+        self.tf_msg_odom_nwu.child_frame_id = self.ros_tf_prefix + "odom_nwu"
+
+        self.tf_msg_odom_nwu.transform.translation.x = 0
+        self.tf_msg_odom_nwu.transform.translation.y = 0
+        self.tf_msg_odom_nwu.transform.translation.z = 0
+
+        self.tf_msg_odom_nwu.transform.rotation.x = 0
+        self.tf_msg_odom_nwu.transform.rotation.y = 0
+        self.tf_msg_odom_nwu.transform.rotation.z = 0
+        self.tf_msg_odom_nwu.transform.rotation.w = 1
+
+        self.publish_static_tf(self.tf_msg_odom_nwu)
+
+
         
 
     def callback(self, topic_name, msg, time_ecal):
@@ -158,14 +179,14 @@ class RosOdometryPublisher:
                 
 
                 if self.use_monotonic:
-                    self.tf_msg_odom.header.stamp = rospy.Time.from_sec(time.monotonic())
+                    self.tf_msg_odom_ned.header.stamp = rospy.Time.from_sec(time.monotonic())
                     self.tf_msg_base_link.header.stamp = rospy.Time.from_sec(time.monotonic())
                 else:
-                    self.tf_msg_odom.header.stamp = rospy.Time.now()
+                    self.tf_msg_odom_ned.header.stamp = rospy.Time.now()
                     self.tf_msg_base_link.header.stamp = rospy.Time.now()
 
-                self.publish_tf(self.tf_msg_odom)
-                self.publish_tf(self.tf_msg_base_link)
+                self.publish_static_tf(self.tf_msg_odom_ned)
+                self.publish_static_tf(self.tf_msg_base_link)
 
             ros_msg = Odometry();
             ros_msg.header.seq = odometryMsg.header.seq
