@@ -21,6 +21,8 @@ import image_capnp as eCALImage
 import cameracontrol_capnp as eCALCameraControl
 import open3d as o3d
 import open3d.visualization.gui as gui
+import open3d.visualization.rendering as rendering
+
 
 from PIL import Image
 
@@ -62,13 +64,16 @@ class ChooseWindow:
         self.cb_cama = gui.Checkbox("cam_a")
         self.panel_main.add_child(self.cb_cama)
 
-        self.cb_camb = gui.Checkbox("cam_b")
+        self.cb_camb = gui.Checkbox("cam_b")        
+        self.cb_camb.checked = True
         self.panel_main.add_child(self.cb_camb)
 
         self.cb_camc = gui.Checkbox("cam_c")
+        self.cb_camc.checked = True
         self.panel_main.add_child(self.cb_camc)
 
         self.cb_camd = gui.Checkbox("cam_d")
+        self.cb_camd.checked = True
         self.panel_main.add_child(self.cb_camd)
 
         self.label_description = gui.Label("Please choose the specific features.")
@@ -166,7 +171,7 @@ class VideoWindow:
 
         # CONFIGURE WINDOW
         self.window = gui.Application.instance.create_window(
-            "Video", 1300, 800)
+            "Video", 2300, 800)
         self.window.set_on_layout(self._on_layout)
         self.window.set_on_close(self._on_close)
 
@@ -281,7 +286,25 @@ class VideoWindow:
         self.collapse.add_child(self.proxy_4)
         
         self.window.add_child(self.collapse)
-        
+
+        self.widget3d = gui.SceneWidget()
+        self.widget3d.scene = rendering.Open3DScene(self.window.renderer)
+        self.window.add_child(self.widget3d)
+
+        bounds = self.widget3d.scene.bounding_box
+        self.widget3d.setup_camera(60.0, bounds, bounds.get_center())        
+
+        lit = rendering.MaterialRecord()
+        lit.shader = "defaultLit"
+        tet = o3d.geometry.TriangleMesh.create_tetrahedron()
+        tet.compute_vertex_normals()
+        tet.paint_uniform_color([0.5, 0.75, 1.0])
+        self.widget3d.scene.add_geometry("tetrahedron", tet, lit)
+        self.widget3d.scene.set_background([2, 1, 2, 1])
+
+
+        self.widget3d.scene.show_axes(True)
+        # self.widget3d.scene.show_ground_plane(True,self.widget3d.scene.scene.GroundPlane(0))
 
         # main panel
         self.panel_main = gui.Vert(0.5 * em, gui.Margins(margin))
@@ -309,12 +332,18 @@ class VideoWindow:
     def _on_layout(self, layout_context):
         contentRect = self.window.content_rect
         panel_main_width = 1040
+        widget3d_width = 500
         self.collapse.frame = gui.Rect(contentRect.x, 
                                 contentRect.y,
-                                contentRect.width - panel_main_width,
+                                contentRect.width - panel_main_width - widget3d_width,
                                 contentRect.height)
 
-        self.panel_main.frame = gui.Rect(self.collapse.frame.get_right(), 
+        self.widget3d.frame = gui.Rect(self.collapse.frame.get_right(),
+                                contentRect.y,
+                                widget3d_width,
+                                contentRect.height)
+
+        self.panel_main.frame = gui.Rect(self.widget3d.frame.get_right(), 
                                 contentRect.y,
                                 panel_main_width,
                                 contentRect.height)
