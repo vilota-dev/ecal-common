@@ -76,8 +76,10 @@ class RosOdometryPublisher:
                 self.broadcaster.sendTransform(tf_msg)
 
     def publish_static_tf(self, tf_msg):
-        if not self.no_tf_publisher:
-                self.static_broadcaster.sendTransform(tf_msg)
+        # we probably should always publish tf transform
+        # if not self.no_tf_publisher:
+        #         self.static_broadcaster.sendTransform(tf_msg)
+        self.static_broadcaster.sendTransform(tf_msg)
 
     def __init__(self, ros_tf_prefix : str, topic : str, use_monotonic : bool, no_tf_publisher : bool) -> None:
         self.first_message = True
