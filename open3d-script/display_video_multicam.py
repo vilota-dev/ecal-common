@@ -81,12 +81,14 @@ class ChooseWindow:
         self.panel_main.add_child(self.label_description)
 
         self.cb_vio = gui.Checkbox("vio is on")
+        self.cb_vio.checked = True
         self.panel_main.add_child(self.cb_vio)
 
         self.cb_synced = gui.Checkbox("use synced image (default asynced)")
         self.panel_main.add_child(self.cb_synced)
 
-        self.cb_thumbnail = gui.Checkbox("use thumbnail image (default normal)")
+        self.cb_thumbnail = gui.Checkbox("use thumbnail image")
+        self.cb_thumbnail.checked = True
         self.panel_main.add_child(self.cb_thumbnail)
         
         self.window.add_child(self.panel_main) 
