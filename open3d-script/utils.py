@@ -11,6 +11,8 @@ import odometry3d_capnp as eCALOdometry3d
 import image_capnp as eCALImage
 import imu_capnp as eCALImu
 
+import time
+
 import queue
 from threading import Lock
 
@@ -314,7 +316,7 @@ class VioSubscriber:
         self.vio_msg = ""
         self.vio_sub.set_callback(self._vio_callback)
 
-    def _vio_callback(self, topic_name, msg, time):
+    def _vio_callback(self, topic_name, msg, time_ecal):
 
         # need to remove the .decode() function within the Python API of ecal.core.subscriber ByteSubscriber
         
@@ -331,7 +333,7 @@ class VioSubscriber:
             
             device_latency_msg = f"device latency = {odometryMsg.header.latencyDevice / 1e6 : .2f} ms"
             
-            vio_host_latency = monotonic() *1e9 - odometryMsg.header.stamp 
+            vio_host_latency = time.monotonic() *1e9 - odometryMsg.header.stamp 
             host_latency_msg = f"host latency = {vio_host_latency / 1e6 :.2f} ms"
             
             self.vio_msg = position_msg + "\n" + orientation_msg + "\n" + device_latency_msg + "\n" + host_latency_msg
