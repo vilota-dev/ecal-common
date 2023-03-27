@@ -316,6 +316,11 @@ class VioSubscriber:
         self.vio_msg = ""
         self.vio_sub.set_callback(self._vio_callback)
 
+        self.position_x = 0.0
+        self.position_y = 0.0
+        self.position_z = 0.0
+
+
     def _vio_callback(self, topic_name, msg, time_ecal):
 
         # need to remove the .decode() function within the Python API of ecal.core.subscriber ByteSubscriber
@@ -328,6 +333,12 @@ class VioSubscriber:
             #     print(f"velocityFrame = {odometryMsg.velocityFrame}")
             #     first_message = False
 
+            # read in data
+            self.position_x = odometryMsg.pose.position.x
+            self.position_y = odometryMsg.pose.position.y
+            self.position_z = odometryMsg.pose.position.z
+
+            # text
             position_msg = f"position: \n {odometryMsg.pose.position.x:.4f}, {odometryMsg.pose.position.y:.4f}, {odometryMsg.pose.position.z:.4f}"
             orientation_msg = f"orientation: \n  {odometryMsg.pose.orientation.w:.4f}, {odometryMsg.pose.orientation.x:.4f}, {odometryMsg.pose.orientation.y:.4f}, {odometryMsg.pose.orientation.z:.4f}"
             

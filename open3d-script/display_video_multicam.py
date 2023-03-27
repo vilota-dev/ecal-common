@@ -175,7 +175,7 @@ class VideoWindow:
         # CONFIGURE WINDOW
         self.window = gui.Application.instance.create_window(
             "Video", 1300, 800)
-        self.window.set_on_layout(self._on_layout_video)
+        self.window.set_on_layout(self._on_layout_odom)
         self.window.set_on_close(self._on_close)
 
         # CONFIGURE MENU
@@ -265,7 +265,7 @@ class VideoWindow:
         self.synced_label = gui.Label("")
         self.collapse.add_child(self.synced_label)
 
-        self.switch_dis_mode = gui.ToggleSwitch("Enable odom display")
+        self.switch_dis_mode = gui.ToggleSwitch("Enable video display")
         self.switch_dis_mode.set_on_clicked(self._on_switch_dis_mode)
         self.collapse.add_child(self.switch_dis_mode)
         
@@ -294,7 +294,7 @@ class VideoWindow:
         
 
 
-
+        # odom widget
         
 
         self.widget3d = gui.SceneWidget()
@@ -306,23 +306,24 @@ class VideoWindow:
         lit = rendering.MaterialRecord()
         lit.shader = "defaultLit"
 
-        floor_height = 0
         floor = o3d.geometry.TriangleMesh.create_box(width=10, height=0.01, depth=10)
-        floor.translate([-5, floor_height, -5])  # Translate the floor to center the cube
+        floor.translate([-5, 0, -5])  
         floor.paint_uniform_color([0.1, 0.1, 0.1])
         self.widget3d.scene.add_geometry("floor", floor, lit)
 
 
-        tet = o3d.geometry.TriangleMesh.create_tetrahedron()
-        tet.compute_vertex_normals()
-        # tet.paint_uniform_color([0.5, 0.75, 1.0])
-        self.widget3d.scene.add_geometry("tetrahedron", tet, lit)
+        self.drone = o3d.geometry.TriangleMesh.create_coordinate_frame()
+        self.drone.compute_vertex_normals()
 
         bounds = self.widget3d.scene.bounding_box
         self.widget3d.setup_camera(60.0, bounds, bounds.get_center())    
 
-        # self.widget3d.scene.show_ground_plane(True,self.widget3d.scene.scene.GroundPlane(0))
-
+        self.drone_x = 0
+        self.drone_y = 0
+        self.drone_z = 0
+        self.drone.translate([self.drone_x, self.drone_y, self.drone_z], relative=False)
+        
+        self.widget3d.scene.add_geometry("drone", self.drone, lit)
 
 
 
@@ -408,10 +409,10 @@ class VideoWindow:
 
     def _on_switch_dis_mode(self, is_on):
         if is_on:
-            self.window.set_on_layout(self._on_layout_odom)
+            self.window.set_on_layout(self._on_layout_video)
             # self.window.set_needs_layout() 
         else:
-            self.window.set_on_layout(self._on_layout_video)
+            self.window.set_on_layout(self._on_layout_odom)
             # self.window.set_needs_layout() 
 
 
@@ -560,6 +561,13 @@ def read_img(window):
         if not window.is_done:
             if flag_dict['vio_status']:
                 update_proxy(window.proxy_vio, vio_sub.vio_msg)
+
+                drone_translation = np.array([  [1, 0, 0, vio_sub.position_x],
+                                                [0, 1, 0, vio_sub.position_y],
+                                                [0, 0, 1, vio_sub.position_z],
+                                                [0, 0, 0, 1]], 
+                                                dtype=np.float64)
+                window.widget3d.scene.set_geometry_transform("drone", drone_translation)
 
 
         window.window.post_redraw()
