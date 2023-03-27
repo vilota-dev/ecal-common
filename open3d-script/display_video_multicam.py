@@ -306,24 +306,30 @@ class VideoWindow:
         lit = rendering.MaterialRecord()
         lit.shader = "defaultLit"
 
-        floor = o3d.geometry.TriangleMesh.create_box(width=10, height=0.01, depth=10)
-        floor.translate([-5, 0, -5])  
-        floor.paint_uniform_color([0.1, 0.1, 0.1])
+        # add floor
+        floor = o3d.geometry.TriangleMesh.create_box(width=10, height=10, depth=0.01)
+        floor.compute_vertex_normals()
+        floor.translate([0, 0, 0], relative=False)  
+        floor.paint_uniform_color([0.5, 0.5, 0.5])
         self.widget3d.scene.add_geometry("floor", floor, lit)
 
-
+        # add drone
         self.drone = o3d.geometry.TriangleMesh.create_coordinate_frame()
         self.drone.compute_vertex_normals()
-
-        bounds = self.widget3d.scene.bounding_box
-        self.widget3d.setup_camera(60.0, bounds, bounds.get_center())    
-
-        self.drone_x = 0
-        self.drone_y = 0
-        self.drone_z = 0
-        self.drone.translate([self.drone_x, self.drone_y, self.drone_z], relative=False)
-        
+        self.drone.translate([0, 0, 0], relative=False)
         self.widget3d.scene.add_geometry("drone", self.drone, lit)
+
+        # add camera
+        bounds = self.widget3d.scene.bounding_box
+        
+        camera_pos = np.array([0, 0, 5], dtype=np.float32)
+        target = np.array([0, 0, 10], dtype=np.float32)
+        up = np.array([0, 1, 0], dtype=np.float32)
+        self.widget3d.look_at(camera_pos, target, up)
+
+        # self.widget3d.setup_camera(60.0, bounds, bounds.get_center())   
+
+
 
 
 
@@ -503,7 +509,12 @@ def read_img(window):
 
         window.window.set_needs_layout() 
         
-
+    # odom path material    
+    mat = rendering.MaterialRecord()
+    mat.shader = "unlitLine"
+    mat.line_width = 5
+    
+    line_index = 0
 
     while ecal_core.ok():
 
@@ -562,12 +573,36 @@ def read_img(window):
             if flag_dict['vio_status']:
                 update_proxy(window.proxy_vio, vio_sub.vio_msg)
 
+                prev_x_coor = window.widget3d.scene.get_geometry_transform("drone")[0][3]
+                prev_y_coor = window.widget3d.scene.get_geometry_transform("drone")[1][3]
+                prev_z_coor = window.widget3d.scene.get_geometry_transform("drone")[2][3]
+                
                 drone_translation = np.array([  [1, 0, 0, vio_sub.position_x],
                                                 [0, 1, 0, vio_sub.position_y],
                                                 [0, 0, 1, vio_sub.position_z],
                                                 [0, 0, 0, 1]], 
                                                 dtype=np.float64)
                 window.widget3d.scene.set_geometry_transform("drone", drone_translation)
+
+                current_x_coor = window.widget3d.scene.get_geometry_transform("drone")[0][3]
+                current_y_coor = window.widget3d.scene.get_geometry_transform("drone")[1][3]
+                current_z_coor = window.widget3d.scene.get_geometry_transform("drone")[2][3]
+
+                vertices = np.array([
+                    [prev_x_coor, prev_y_coor, prev_z_coor],  # previous coordinate
+                    [current_x_coor, current_y_coor, current_z_coor], # updated coordinate
+                ],
+                dtype = np.float64)
+                edge = np.array([[0, 1],], dtype = np.int32)
+
+
+                line_path = o3d.geometry.LineSet()
+                line_path.points = o3d.utility.Vector3dVector(vertices)
+                line_path.lines = o3d.utility.Vector2iVector(edge)
+                line_path.colors = o3d.utility.Vector3dVector([(1, 0, 0)])
+                line_name = "line_" + str(line_index)
+                window.widget3d.scene.add_geometry(line_name, line_path, mat, False)
+                line_index +=1
 
 
         window.window.post_redraw()
