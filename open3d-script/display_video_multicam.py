@@ -160,11 +160,12 @@ class ChooseWindow:
 
 class VideoWindow:
     MENU_QUIT = 1
+   
 
     def __init__(self):
                 
         self.is_done = False
-
+        self.odom_display_mode = False
 
         self.expTime_display_flag = False
         self.sensIso_display_flag = False
@@ -173,8 +174,8 @@ class VideoWindow:
 
         # CONFIGURE WINDOW
         self.window = gui.Application.instance.create_window(
-            "Video", 2300, 800)
-        self.window.set_on_layout(self._on_layout)
+            "Video", 1300, 800)
+        self.window.set_on_layout(self._on_layout_video)
         self.window.set_on_close(self._on_close)
 
         # CONFIGURE MENU
@@ -263,6 +264,10 @@ class VideoWindow:
 
         self.synced_label = gui.Label("")
         self.collapse.add_child(self.synced_label)
+
+        self.switch_dis_mode = gui.ToggleSwitch("Enable odom display")
+        self.switch_dis_mode.set_on_clicked(self._on_switch_dis_mode)
+        self.collapse.add_child(self.switch_dis_mode)
         
         self.label_info = gui.Label("Vio Information")
         self.label_info.text_color = gui.Color(1.0, 0.5, 0.0)
@@ -287,26 +292,43 @@ class VideoWindow:
         self.proxy_4 = gui.WidgetProxy()
         self.collapse.add_child(self.proxy_4)
         
-        self.window.add_child(self.collapse)
+
+
+
+        
 
         self.widget3d = gui.SceneWidget()
         self.widget3d.scene = rendering.Open3DScene(self.window.renderer)
-        self.window.add_child(self.widget3d)
-
-        bounds = self.widget3d.scene.bounding_box
-        self.widget3d.setup_camera(60.0, bounds, bounds.get_center())        
+      
+        self.widget3d.scene.show_axes(True)
+        self.widget3d.scene.set_background([2, 1, 2, 1])
 
         lit = rendering.MaterialRecord()
         lit.shader = "defaultLit"
+
+        floor_height = 0
+        floor = o3d.geometry.TriangleMesh.create_box(width=10, height=0.01, depth=10)
+        floor.translate([-5, floor_height, -5])  # Translate the floor to center the cube
+        floor.paint_uniform_color([0.1, 0.1, 0.1])
+        self.widget3d.scene.add_geometry("floor", floor, lit)
+
+
         tet = o3d.geometry.TriangleMesh.create_tetrahedron()
         tet.compute_vertex_normals()
-        tet.paint_uniform_color([0.5, 0.75, 1.0])
+        # tet.paint_uniform_color([0.5, 0.75, 1.0])
         self.widget3d.scene.add_geometry("tetrahedron", tet, lit)
-        self.widget3d.scene.set_background([2, 1, 2, 1])
 
+        bounds = self.widget3d.scene.bounding_box
+        self.widget3d.setup_camera(60.0, bounds, bounds.get_center())    
 
-        self.widget3d.scene.show_axes(True)
         # self.widget3d.scene.show_ground_plane(True,self.widget3d.scene.scene.GroundPlane(0))
+
+
+
+
+
+
+
 
         # main panel
         self.panel_main = gui.Vert(0.5 * em, gui.Margins(margin))
@@ -327,17 +349,44 @@ class VideoWindow:
         self.panel_bottom.add_child(self.rgb_widget_4)
         self.panel_main.add_child(self.panel_bottom) 
 
-        self.window.add_child(self.panel_main) 
+        
+        self.window.add_child(self.collapse)
+        self.window.add_child(self.panel_main)
+        self.window.add_child(self.widget3d)
+
+        self.init_video = 0 
+        self.init_odom = 0
 
 
 
-    def _on_layout(self, layout_context):
+    def _on_layout_video(self, layout_context):
+
         contentRect = self.window.content_rect
         panel_main_width = 1040
-        widget3d_width = 500
+        widget3d_width = 1040
         self.collapse.frame = gui.Rect(contentRect.x, 
                                 contentRect.y,
-                                contentRect.width - panel_main_width - widget3d_width,
+                                260,
+                                contentRect.height)
+
+        self.panel_main.frame = gui.Rect(self.collapse.frame.get_right(), 
+                                contentRect.y,
+                                panel_main_width,
+                                contentRect.height)
+
+        self.widget3d.frame = gui.Rect(self.panel_main.frame.get_right(),
+                        contentRect.y,
+                        widget3d_width,
+                        contentRect.height)
+    
+    def _on_layout_odom(self, layout_context):
+
+        contentRect = self.window.content_rect
+        panel_main_width = 1040
+        widget3d_width = 1040
+        self.collapse.frame = gui.Rect(contentRect.x, 
+                                contentRect.y,
+                                260,
                                 contentRect.height)
 
         self.widget3d.frame = gui.Rect(self.collapse.frame.get_right(),
@@ -349,7 +398,7 @@ class VideoWindow:
                                 contentRect.y,
                                 panel_main_width,
                                 contentRect.height)
-        
+
     def _on_close(self):
         self.is_done = True
         return True  # False would cancel the close
@@ -357,7 +406,16 @@ class VideoWindow:
     def _on_menu_quit(self):
         gui.Application.instance.quit()
 
-    
+    def _on_switch_dis_mode(self, is_on):
+        if is_on:
+            self.window.set_on_layout(self._on_layout_odom)
+            # self.window.set_needs_layout() 
+        else:
+            self.window.set_on_layout(self._on_layout_video)
+            # self.window.set_needs_layout() 
+
+
+
     def _on_switch_expTime(self, is_on):
         if is_on:
             self.expTime_display_flag = True
