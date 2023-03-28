@@ -320,16 +320,14 @@ class VideoWindow:
         self.widget3d.scene.add_geometry("drone", self.drone, lit)
 
         # add camera
-        bounds = self.widget3d.scene.bounding_box
+        self.bounds = self.widget3d.scene.bounding_box
         
         camera_pos = np.array([0, 0, 5], dtype=np.float32)
         target = np.array([0, 0, 10], dtype=np.float32)
         up = np.array([0, 1, 0], dtype=np.float32)
         self.widget3d.look_at(camera_pos, target, up)
 
-        # self.widget3d.setup_camera(60.0, bounds, bounds.get_center())   
-
-
+        # self.widget3d.setup_camera(60.0, self.bounds, self.bounds.get_center())   
 
 
 
@@ -577,17 +575,24 @@ def read_img(window):
                 prev_y_coor = window.widget3d.scene.get_geometry_transform("drone")[1][3]
                 prev_z_coor = window.widget3d.scene.get_geometry_transform("drone")[2][3]
                 
-                drone_translation = np.array([  [1, 0, 0, vio_sub.position_x],
-                                                [0, 1, 0, vio_sub.position_y],
-                                                [0, 0, 1, vio_sub.position_z],
+                x = vio_sub.orientation_x
+                y = vio_sub.orientation_y
+                z = vio_sub.orientation_z
+                w = vio_sub.orientation_w
+
+                drone_transform = np.array([     [1-2*y**2-2*z**2, 2*x*y - 2*w*z, 2*x*z + 2*w*y, vio_sub.position_x],
+                                                [2*x*y + 2*w*z, 1 - 2*x**2 - 2*z**2, 2*y*z - 2*w*x, vio_sub.position_y],
+                                                [2*x*z - 2*w*y, 2*y*z + 2*w*x, 1 - 2*x**2 - 2*y**2, vio_sub.position_z],
                                                 [0, 0, 0, 1]], 
                                                 dtype=np.float64)
-                window.widget3d.scene.set_geometry_transform("drone", drone_translation)
+                window.widget3d.scene.set_geometry_transform("drone", drone_transform)
+
 
                 current_x_coor = window.widget3d.scene.get_geometry_transform("drone")[0][3]
                 current_y_coor = window.widget3d.scene.get_geometry_transform("drone")[1][3]
                 current_z_coor = window.widget3d.scene.get_geometry_transform("drone")[2][3]
 
+                # path sub line
                 vertices = np.array([
                     [prev_x_coor, prev_y_coor, prev_z_coor],  # previous coordinate
                     [current_x_coor, current_y_coor, current_z_coor], # updated coordinate
@@ -595,7 +600,7 @@ def read_img(window):
                 dtype = np.float64)
                 edge = np.array([[0, 1],], dtype = np.int32)
 
-
+                # draw the sub line
                 line_path = o3d.geometry.LineSet()
                 line_path.points = o3d.utility.Vector3dVector(vertices)
                 line_path.lines = o3d.utility.Vector2iVector(edge)

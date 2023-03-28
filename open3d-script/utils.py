@@ -320,6 +320,11 @@ class VioSubscriber:
         self.position_y = 0.0
         self.position_z = 0.0
 
+        self.orientation_x = 0.0
+        self.orientation_y = 0.0
+        self.orientation_z = 0.0
+        self.orientation_w = 0.0
+
 
     def _vio_callback(self, topic_name, msg, time_ecal):
 
@@ -337,6 +342,11 @@ class VioSubscriber:
             self.position_x = odometryMsg.pose.position.x
             self.position_y = odometryMsg.pose.position.y
             self.position_z = odometryMsg.pose.position.z
+
+            self.orientation_x = odometryMsg.pose.orientation.x
+            self.orientation_y = odometryMsg.pose.orientation.y
+            self.orientation_z = odometryMsg.pose.orientation.z
+            self.orientation_w = odometryMsg.pose.orientation.w
 
             # text
             position_msg = f"position: \n {odometryMsg.pose.position.x:.4f}, {odometryMsg.pose.position.y:.4f}, {odometryMsg.pose.position.z:.4f}"
