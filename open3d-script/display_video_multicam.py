@@ -511,6 +511,7 @@ def read_img(window):
     mat = rendering.MaterialRecord()
     mat.shader = "unlitLine"
     mat.line_width = 5
+    # mat.sRGB_color = [0.0, 1.0, 0.0]
     
     line_index = 0
 
@@ -587,7 +588,7 @@ def read_img(window):
                                                 dtype=np.float64)
                 window.widget3d.scene.set_geometry_transform("drone", drone_transform)
 
-
+                print("trans matrix", drone_transform)
                 current_x_coor = window.widget3d.scene.get_geometry_transform("drone")[0][3]
                 current_y_coor = window.widget3d.scene.get_geometry_transform("drone")[1][3]
                 current_z_coor = window.widget3d.scene.get_geometry_transform("drone")[2][3]
@@ -601,13 +602,14 @@ def read_img(window):
                 edge = np.array([[0, 1],], dtype = np.int32)
 
                 # draw the sub line
-                line_path = o3d.geometry.LineSet()
-                line_path.points = o3d.utility.Vector3dVector(vertices)
-                line_path.lines = o3d.utility.Vector2iVector(edge)
-                line_path.colors = o3d.utility.Vector3dVector([(1, 0, 0)])
-                line_name = "line_" + str(line_index)
-                window.widget3d.scene.add_geometry(line_name, line_path, mat, False)
-                line_index +=1
+                if not np.array_equal(vertices[0], vertices[1]):
+                    line_path = o3d.geometry.LineSet()
+                    line_path.points = o3d.utility.Vector3dVector(vertices)
+                    line_path.lines = o3d.utility.Vector2iVector(edge)
+                    line_path.colors = o3d.utility.Vector3dVector([(1, 0, 0)])
+                    line_name = "line_" + str(line_index)
+                    window.widget3d.scene.add_geometry(line_name, line_path, mat, False)
+                    line_index +=1
 
 
         window.window.post_redraw()
