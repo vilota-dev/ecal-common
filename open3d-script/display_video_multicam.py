@@ -27,6 +27,7 @@ import open3d.visualization.rendering as rendering
 from PIL import Image
 
 from utils import SyncedImageSubscriber, AsyncedImageSubscriber, VioSubscriber, add_ui_on_ndarray
+from o3d_utils import create_grid_mesh
 
 isMacOS = (platform.system() == "Darwin")
 
@@ -306,13 +307,25 @@ class VideoWindow:
         lit = rendering.MaterialRecord()
         lit.shader = "defaultLit"
 
+        line_mat = rendering.MaterialRecord()
+        line_mat.shader = "unlitLine"
+        line_mat.line_width = 2
+
         # add floor
-        floor = o3d.geometry.TriangleMesh.create_box(width=10, height=10, depth=0.01)
+        floor_width = 50
+        floor_height = 100
+        floor = o3d.geometry.TriangleMesh.create_box(width=floor_width, height=floor_height, depth=0.01)
         floor.compute_vertex_normals()
         floor.translate([0, 0, 0], relative=False)  
         floor.paint_uniform_color([0.5, 0.5, 0.5])
         self.widget3d.scene.add_geometry("floor", floor, lit)
 
+        floor_grid = create_grid_mesh(floor_width, floor_height, 1)
+        floor_grid.translate([floor.get_center()[0], floor.get_center()[1], floor.get_max_bound()[2]], relative=False)  
+        floor_grid.paint_uniform_color([0, 0, 0])        
+        self.widget3d.scene.add_geometry("floor_grid", floor_grid, line_mat)
+
+        # add land survey model
         land_survey = o3d.io.read_triangle_mesh("./model_data/landsurvey.obj", True, True)
         land_survey.compute_vertex_normals()
         land_survey.translate([0, 0, 0], relative=False)  
