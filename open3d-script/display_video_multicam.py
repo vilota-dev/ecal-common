@@ -328,15 +328,15 @@ class VideoWindow:
         line_mat.line_width = 2
 
         # add floor
-        floor_width = 10
-        floor_height = 10
+        floor_width = 50
+        floor_height = 50
         floor = o3d.geometry.TriangleMesh.create_box(width=floor_width, height=floor_height, depth=0.01)
         floor.compute_vertex_normals()
         floor.translate([0, 0, 0], relative=False)  
         floor.paint_uniform_color([0.5, 0.5, 0.5])
         self.widget3d.scene.add_geometry("floor", floor, lit)
 
-        floor_grid = create_grid_mesh(floor_width, floor_height, 1)
+        floor_grid = create_grid_mesh(floor_width, floor_height, 5)
         floor_grid.translate([floor.get_center()[0], floor.get_center()[1], floor.get_max_bound()[2]], relative=False)  
         floor_grid.paint_uniform_color([0, 0, 0])        
         self.widget3d.scene.add_geometry("floor_grid", floor_grid, line_mat)
@@ -462,7 +462,7 @@ class VideoWindow:
 
     def set_top_view(self):
         self.widget3d.setup_camera(60.0, self.bounds, self.bounds.get_center())   
-        camera_pos = np.array([0, 0, 10], dtype=np.float32)
+        camera_pos = np.array([0, 0, 50], dtype=np.float32)
         target = np.array([0, 0, 0], dtype=np.float32)
         up = np.array([1, 0, 0], dtype=np.float32)
         self.widget3d.look_at(target, camera_pos, up)
@@ -675,7 +675,7 @@ def read_img(window):
             if window.cb_trace.checked:
 
                 window.widget3d.setup_camera(60.0, window.bounds, window.bounds.get_center())   
-                camera_pos = np.array([current_x_coor, current_y_coor, current_z_coor+5], dtype=np.float32)
+                camera_pos = np.array([current_x_coor, current_y_coor, current_z_coor+15], dtype=np.float32)
                 target = np.array([current_x_coor, current_y_coor, current_z_coor], dtype=np.float32)
                 up = np.array([1, 0, 0], dtype=np.float32)
                 window.widget3d.look_at(target, camera_pos, up)
