@@ -270,9 +270,10 @@ class VideoWindow:
         self.switch_dis_mode.set_on_clicked(self._on_switch_dis_mode)
         self.collapse.add_child(self.switch_dis_mode)
 
-        self.switch_grid = gui.ToggleSwitch("Enable floor grid")
-        self.switch_grid.set_on_clicked(self._on_switch_grid)
-        self.collapse.add_child(self.switch_grid)
+        self.cb_grid = gui.Checkbox("Floor grid")
+        self.cb_grid.checked = True
+        self.cb_grid.set_on_checked(self._on_cb_grid)
+        self.collapse.add_child(self.cb_grid)
         
         self.label_info = gui.Label("Vio Information")
         self.label_info.text_color = gui.Color(1.0, 0.5, 0.0)
@@ -442,8 +443,8 @@ class VideoWindow:
             self.window.set_on_layout(self._on_layout_odom)
             # self.window.set_needs_layout() 
 
-    def _on_switch_grid(self, is_on):
-        if is_on:
+    def _on_cb_grid(self, is_checked):
+        if is_checked:
             self.widget3d.scene.show_geometry("floor_grid", True)
         else:
             self.widget3d.scene.show_geometry("floor_grid", False)
