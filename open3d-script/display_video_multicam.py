@@ -313,21 +313,28 @@ class VideoWindow:
         floor.paint_uniform_color([0.5, 0.5, 0.5])
         self.widget3d.scene.add_geometry("floor", floor, lit)
 
+        land_survey = o3d.io.read_triangle_mesh("./model_data/landsurvey.obj", True, True)
+        land_survey.compute_vertex_normals()
+        land_survey.translate([0, 0, 0], relative=False)  
+        floor.paint_uniform_color([0, 0, 0])
+        # self.widget3d.scene.add_geometry("land_survey", land_survey, lit)
+
+
         # add drone
         self.drone = o3d.geometry.TriangleMesh.create_coordinate_frame()
         self.drone.compute_vertex_normals()
-        self.drone.translate([0, 0, 0], relative=False)
+        self.drone.translate([0, 1, 0], relative=False)
         self.widget3d.scene.add_geometry("drone", self.drone, lit)
 
         # add camera
         self.bounds = self.widget3d.scene.bounding_box
         
-        camera_pos = np.array([0, 0, 5], dtype=np.float32)
-        target = np.array([0, 0, 10], dtype=np.float32)
-        up = np.array([0, 1, 0], dtype=np.float32)
-        self.widget3d.look_at(camera_pos, target, up)
+        # camera_pos = np.array([0, 0, 5], dtype=np.float32)
+        # target = np.array([0, 0, 10], dtype=np.float32)
+        # up = np.array([0, 1, 0], dtype=np.float32)
+        # self.widget3d.look_at(camera_pos, target, up)
 
-        # self.widget3d.setup_camera(60.0, self.bounds, self.bounds.get_center())   
+        self.widget3d.setup_camera(60.0, self.bounds, self.bounds.get_center())   
 
 
 
