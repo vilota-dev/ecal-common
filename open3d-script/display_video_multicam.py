@@ -275,6 +275,18 @@ class VideoWindow:
         self.cb_grid.set_on_checked(self._on_cb_grid)
         self.collapse.add_child(self.cb_grid)
         
+        bu_top_view = gui.Button("Top view")
+        bu_top_view.set_on_clicked(self.set_top_view) 
+        self.collapse.add_child(bu_top_view)
+        
+        self.cb_trace = gui.Checkbox("Enable tracing view")
+        self.cb_trace.set_on_checked(self._on_cb_tracing)
+        self.collapse.add_child(self.cb_trace)
+
+        switch_clear = gui.ToggleSwitch("Clear (not ready)")
+        switch_clear.set_on_clicked(self._on_switch_clear)
+        self.collapse.add_child(switch_clear)
+
         self.label_info = gui.Label("Vio Information")
         self.label_info.text_color = gui.Color(1.0, 0.5, 0.0)
         self.collapse.add_child(self.label_info)
@@ -316,8 +328,8 @@ class VideoWindow:
         line_mat.line_width = 2
 
         # add floor
-        floor_width = 50
-        floor_height = 50
+        floor_width = 10
+        floor_height = 10
         floor = o3d.geometry.TriangleMesh.create_box(width=floor_width, height=floor_height, depth=0.01)
         floor.compute_vertex_normals()
         floor.translate([0, 0, 0], relative=False)  
@@ -333,26 +345,23 @@ class VideoWindow:
         land_survey = o3d.io.read_triangle_mesh("./model_data/landsurvey.obj", True, True)
         land_survey.compute_vertex_normals()
         land_survey.translate([0, 0, 0], relative=False)  
-        floor.paint_uniform_color([0, 0, 0])
+        land_survey.paint_uniform_color([0.3, 0.3, 0.2])
         # self.widget3d.scene.add_geometry("land_survey", land_survey, lit)
 
 
         # add drone
         self.drone = o3d.geometry.TriangleMesh.create_coordinate_frame()
         self.drone.compute_vertex_normals()
-        self.drone.translate([0, 1, 0], relative=False)
+        self.drone.translate([0, 0, 0], relative=False)
         self.widget3d.scene.add_geometry("drone", self.drone, lit)
+
+        self.path_line_list = []
 
         # add camera
         self.bounds = self.widget3d.scene.bounding_box
+        self.drone_bound = self.drone. get_axis_aligned_bounding_box()
         
-        # camera_pos = np.array([0, 0, 5], dtype=np.float32)
-        # target = np.array([0, 0, 10], dtype=np.float32)
-        # up = np.array([0, 1, 0], dtype=np.float32)
-        # self.widget3d.look_at(camera_pos, target, up)
-
-        self.widget3d.setup_camera(60.0, self.bounds, self.bounds.get_center())   
-
+        self.set_top_view()
 
 
 
@@ -450,6 +459,25 @@ class VideoWindow:
             self.widget3d.scene.show_geometry("floor_grid", False)
       
 
+
+    def set_top_view(self):
+        self.widget3d.setup_camera(60.0, self.bounds, self.bounds.get_center())   
+        camera_pos = np.array([0, 0, 10], dtype=np.float32)
+        target = np.array([0, 0, 0], dtype=np.float32)
+        up = np.array([1, 0, 0], dtype=np.float32)
+        self.widget3d.look_at(target, camera_pos, up)
+
+    def _on_cb_tracing(self, is_checked):
+        if is_checked:
+            pass
+        else:
+            self.set_top_view()
+    
+    def _on_switch_clear(self, is_on):
+        if is_on:
+            pass
+        else:
+            pass
 
     def _on_switch_expTime(self, is_on):
         if is_on:
@@ -618,7 +646,7 @@ def read_img(window):
                                                 dtype=np.float64)
                 window.widget3d.scene.set_geometry_transform("drone", drone_transform)
 
-                print("trans matrix", drone_transform)
+                # print("trans matrix", drone_transform)
                 current_x_coor = window.widget3d.scene.get_geometry_transform("drone")[0][3]
                 current_y_coor = window.widget3d.scene.get_geometry_transform("drone")[1][3]
                 current_z_coor = window.widget3d.scene.get_geometry_transform("drone")[2][3]
@@ -638,8 +666,20 @@ def read_img(window):
                     line_path.lines = o3d.utility.Vector2iVector(edge)
                     line_path.colors = o3d.utility.Vector3dVector([(1, 0, 0)])
                     line_name = "line_" + str(line_index)
+                    window.path_line_list.append(line_name)
                     window.widget3d.scene.add_geometry(line_name, line_path, mat, False)
                     line_index +=1
+            else:
+                pass
+            
+            if window.cb_trace.checked:
+
+                window.widget3d.setup_camera(60.0, window.bounds, window.bounds.get_center())   
+                camera_pos = np.array([current_x_coor, current_y_coor, current_z_coor+5], dtype=np.float32)
+                target = np.array([current_x_coor, current_y_coor, current_z_coor], dtype=np.float32)
+                up = np.array([1, 0, 0], dtype=np.float32)
+                window.widget3d.look_at(target, camera_pos, up)
+            
 
 
         window.window.post_redraw()
