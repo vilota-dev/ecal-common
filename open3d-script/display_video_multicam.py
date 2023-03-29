@@ -269,6 +269,10 @@ class VideoWindow:
         self.switch_dis_mode = gui.ToggleSwitch("Enable video display")
         self.switch_dis_mode.set_on_clicked(self._on_switch_dis_mode)
         self.collapse.add_child(self.switch_dis_mode)
+
+        self.switch_grid = gui.ToggleSwitch("Enable floor grid")
+        self.switch_grid.set_on_clicked(self._on_switch_grid)
+        self.collapse.add_child(self.switch_grid)
         
         self.label_info = gui.Label("Vio Information")
         self.label_info.text_color = gui.Color(1.0, 0.5, 0.0)
@@ -297,7 +301,6 @@ class VideoWindow:
 
         # odom widget
         
-
         self.widget3d = gui.SceneWidget()
         self.widget3d.scene = rendering.Open3DScene(self.window.renderer)
       
@@ -313,7 +316,7 @@ class VideoWindow:
 
         # add floor
         floor_width = 50
-        floor_height = 100
+        floor_height = 50
         floor = o3d.geometry.TriangleMesh.create_box(width=floor_width, height=floor_height, depth=0.01)
         floor.compute_vertex_normals()
         floor.translate([0, 0, 0], relative=False)  
@@ -439,6 +442,12 @@ class VideoWindow:
             self.window.set_on_layout(self._on_layout_odom)
             # self.window.set_needs_layout() 
 
+    def _on_switch_grid(self, is_on):
+        if is_on:
+            self.widget3d.scene.show_geometry("floor_grid", True)
+        else:
+            self.widget3d.scene.show_geometry("floor_grid", False)
+      
 
 
     def _on_switch_expTime(self, is_on):
