@@ -239,19 +239,19 @@ class VideoWindow:
         self.cb_grid.set_on_checked(self._on_cb_grid)
         odom_tab.add_child(self.cb_grid)
 
-        switch_clear = gui.ToggleSwitch("Clear (not ready)")
-        switch_clear.set_on_clicked(self._on_switch_clear)
-        odom_tab.add_child(switch_clear)
+        btn_clear = gui.Button("Clear path")
+        btn_clear.set_on_clicked(self._btn_clear)
+        odom_tab.add_child(btn_clear)
 
         label_display_control = gui.Label("Camera view")
         label_display_control.text_color = gui.Color(1.0, 0.5, 0.0)
         odom_tab.add_child(label_display_control)
 
-        bu_top_view = gui.Button("Reset to default position")
-        bu_top_view.vertical_padding_em = 0
-        bu_top_view.horizontal_padding_em = 0
-        bu_top_view.set_on_clicked(self.set_top_view) 
-        odom_tab.add_child(bu_top_view)
+        btn_top_view = gui.Button("Reset to default position")
+        btn_top_view.vertical_padding_em = 0
+        btn_top_view.horizontal_padding_em = 0
+        btn_top_view.set_on_clicked(self.set_top_view) 
+        odom_tab.add_child(btn_top_view)
         
         self.cb_trace = gui.Checkbox("Enable tracing view")
         self.cb_trace.set_on_checked(self._on_cb_tracing)
@@ -383,6 +383,7 @@ class VideoWindow:
         self.widget3d.scene.add_geometry("drone", self.drone, lit)
 
         self.path_line_list = []
+        self.cleaning_now = False
 
         # add camera
         self.bounds = self.widget3d.scene.bounding_box
@@ -498,11 +499,13 @@ class VideoWindow:
         else:
             self.set_top_view()
     
-    def _on_switch_clear(self, is_on):
-        if is_on:
-            pass
-        else:
-            pass
+    def _btn_clear(self):
+        self.cleaning_now = True
+
+        for line_name in self.path_line_list:
+            self.widget3d.scene.remove_geometry(line_name)
+        
+        self.cleaning_now = False
 
     def _on_switch_expTime(self, is_on):
         if is_on:
@@ -690,10 +693,11 @@ def read_img(window):
                     line_path.points = o3d.utility.Vector3dVector(vertices)
                     line_path.lines = o3d.utility.Vector2iVector(edge)
                     line_path.colors = o3d.utility.Vector3dVector([(1, 0, 0)])
-                    line_name = "line_" + str(line_index)
-                    window.path_line_list.append(line_name)
-                    window.widget3d.scene.add_geometry(line_name, line_path, mat, False)
-                    line_index +=1
+                    if not window.cleaning_now:
+                        line_name = "line_" + str(line_index)
+                        window.path_line_list.append(line_name)
+                        window.widget3d.scene.add_geometry(line_name, line_path, mat, False)
+                        line_index +=1
             else:
                 pass
             
