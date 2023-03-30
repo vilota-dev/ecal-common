@@ -166,7 +166,6 @@ class VideoWindow:
     def __init__(self):
                 
         self.is_done = False
-        self.odom_display_mode = False
 
         self.expTime_display_flag = False
         self.sensIso_display_flag = False
@@ -215,88 +214,116 @@ class VideoWindow:
         margin = 0.5 * em
         
         # side 
-        self.collapse = gui.CollapsableVert("Widgets", 0.33 * em,
+        self.collapse = gui.CollapsableVert("Control panel", 0.33 * em,
                                        gui.Margins(em, 0, 0, 0))
         
+        # change display radio buttoh
+        self.rb_display = gui.RadioButton(gui.RadioButton.HORIZ)
+        self.rb_display.set_items(["Odometry", "Video"])
+        self.rb_display.set_on_selection_changed(self._select_rb_display)
+        self.collapse.add_child(self.rb_display)
 
-        self.label_camera_control = gui.Label("Streaming control")
-        self.label_camera_control.text_color = gui.Color(1.0, 0.5, 0.0)
-        self.collapse.add_child(self.label_camera_control)
-        
-        self.cb_cama = gui.Checkbox("Start streaming cama")
-        self.cb_cama.checked = True
-        self.collapse.add_child(self.cb_cama)
 
-        self.cb_camb = gui.Checkbox("Start streaming camb")
-        self.cb_camb.checked = True
-        self.collapse.add_child(self.cb_camb)
+        # tab 
+        tabs = gui.TabControl()
 
-        self.cb_camc = gui.Checkbox("Start streaming camc")
-        self.cb_camc.checked = True
-        self.collapse.add_child(self.cb_camc)
+        # odom tab
+        odom_tab = gui.Vert(0.5 * em, gui.Margins(8,8,16,8))
 
-        self.cb_camd = gui.Checkbox("Start streaming camd")
-        self.cb_camd.checked = True
-        self.collapse.add_child(self.cb_camd)
-        
-        self.label_display_control = gui.Label("Display control")
-        self.label_display_control.text_color = gui.Color(1.0, 0.5, 0.0)
-        self.collapse.add_child(self.label_display_control)
-
-        switch_expTime = gui.ToggleSwitch("Display expTime")
-        switch_expTime.set_on_clicked(self._on_switch_expTime)
-        self.collapse.add_child(switch_expTime)
-        
-        switch_sensIso = gui.ToggleSwitch("Display sensIso")
-        switch_sensIso.set_on_clicked(self._on_switch_sensIso)
-        self.collapse.add_child(switch_sensIso)
-
-        switch_latencyDevice = gui.ToggleSwitch("Display latencyDevice")
-        switch_latencyDevice.set_on_clicked(self._on_switch_latencyDevice)
-        self.collapse.add_child(switch_latencyDevice)
-
-        switch_latencyHost = gui.ToggleSwitch("Display latencyHost")
-        switch_latencyHost.set_on_clicked(self._on_switch_latencyHost)
-        self.collapse.add_child(switch_latencyHost)
-            
-        self.label_info = gui.Label("Streaming mode")
-        self.label_info.text_color = gui.Color(1.0, 0.5, 0.0)
-        self.collapse.add_child(self.label_info)
-
-        self.synced_label = gui.Label("")
-        self.collapse.add_child(self.synced_label)
-
-        self.switch_dis_mode = gui.ToggleSwitch("Enable video display")
-        self.switch_dis_mode.set_on_clicked(self._on_switch_dis_mode)
-        self.collapse.add_child(self.switch_dis_mode)
+        label_display_control = gui.Label("Edit odometry")
+        label_display_control.text_color = gui.Color(1.0, 0.5, 0.0)
+        odom_tab.add_child(label_display_control)
 
         self.cb_grid = gui.Checkbox("Floor grid")
         self.cb_grid.checked = True
         self.cb_grid.set_on_checked(self._on_cb_grid)
-        self.collapse.add_child(self.cb_grid)
-        
-        bu_top_view = gui.Button("Top view")
-        bu_top_view.set_on_clicked(self.set_top_view) 
-        self.collapse.add_child(bu_top_view)
-        
-        self.cb_trace = gui.Checkbox("Enable tracing view")
-        self.cb_trace.set_on_checked(self._on_cb_tracing)
-        self.collapse.add_child(self.cb_trace)
+        odom_tab.add_child(self.cb_grid)
 
         switch_clear = gui.ToggleSwitch("Clear (not ready)")
         switch_clear.set_on_clicked(self._on_switch_clear)
-        self.collapse.add_child(switch_clear)
+        odom_tab.add_child(switch_clear)
 
-        self.label_info = gui.Label("Vio Information")
-        self.label_info.text_color = gui.Color(1.0, 0.5, 0.0)
-        self.collapse.add_child(self.label_info)
+        label_display_control = gui.Label("Camera view")
+        label_display_control.text_color = gui.Color(1.0, 0.5, 0.0)
+        odom_tab.add_child(label_display_control)
+
+        bu_top_view = gui.Button("Reset to default position")
+        bu_top_view.vertical_padding_em = 0
+        bu_top_view.horizontal_padding_em = 0
+        bu_top_view.set_on_clicked(self.set_top_view) 
+        odom_tab.add_child(bu_top_view)
+        
+        self.cb_trace = gui.Checkbox("Enable tracing view")
+        self.cb_trace.set_on_checked(self._on_cb_tracing)
+        odom_tab.add_child(self.cb_trace)
+
+        tabs.add_tab("Odometry", odom_tab)
+        self.collapse.add_child(tabs)
+        
+        # video tab
+        video_tab = gui.Vert(0.5 * em, gui.Margins(8,8,8,8))
+
+        label_camera_control = gui.Label("Streaming control")
+        label_camera_control.text_color = gui.Color(1.0, 0.5, 0.0)
+        video_tab.add_child(label_camera_control)
+        
+        self.cb_cama = gui.Checkbox("Steam cama")
+        # self.cb_cama.checked = True
+        video_tab.add_child(self.cb_cama)
+
+        self.cb_camb = gui.Checkbox("Steam camb")
+        self.cb_camb.checked = True
+        video_tab.add_child(self.cb_camb)
+
+        self.cb_camc = gui.Checkbox("Steam camc")
+        self.cb_camc.checked = True
+        video_tab.add_child(self.cb_camc)
+
+        self.cb_camd = gui.Checkbox("Steam camd")
+        self.cb_camd.checked = True
+        video_tab.add_child(self.cb_camd)
+        
+        label_display_control = gui.Label("Display control")
+        label_display_control.text_color = gui.Color(1.0, 0.5, 0.0)
+        video_tab.add_child(label_display_control)
+
+        switch_expTime = gui.ToggleSwitch("Display expTime")
+        switch_expTime.set_on_clicked(self._on_switch_expTime)
+        video_tab.add_child(switch_expTime)
+        
+        switch_sensIso = gui.ToggleSwitch("Display sensIso")
+        switch_sensIso.set_on_clicked(self._on_switch_sensIso)
+        video_tab.add_child(switch_sensIso)
+
+        switch_latencyDevice = gui.ToggleSwitch("Display latencyDevice")
+        switch_latencyDevice.set_on_clicked(self._on_switch_latencyDevice)
+        video_tab.add_child(switch_latencyDevice)
+
+        switch_latencyHost = gui.ToggleSwitch("Display latencyHost")
+        switch_latencyHost.set_on_clicked(self._on_switch_latencyHost)
+        video_tab.add_child(switch_latencyHost)
+            
+        label_info = gui.Label("Streaming mode")
+        label_info.text_color = gui.Color(1.0, 0.5, 0.0)
+        video_tab.add_child(label_info)
+
+        self.synced_label = gui.Label("")
+        video_tab.add_child(self.synced_label)
+
+        tabs.add_tab("Video", video_tab)
+
+
+        # message show
+        label_info = gui.Label("Vio Information")
+        label_info.text_color = gui.Color(1.0, 0.5, 0.0)
+        self.collapse.add_child(label_info)
 
         self.proxy_vio = gui.WidgetProxy()
         self.collapse.add_child(self.proxy_vio)
 
-        self.label_info = gui.Label("Camera Information")
-        self.label_info.text_color = gui.Color(1.0, 0.5, 0.0)
-        self.collapse.add_child(self.label_info)
+        label_info = gui.Label("Camera Information")
+        label_info.text_color = gui.Color(1.0, 0.5, 0.0)
+        self.collapse.add_child(label_info)
 
         self.proxy_1 = gui.WidgetProxy()
         self.collapse.add_child(self.proxy_1)
@@ -444,13 +471,13 @@ class VideoWindow:
     def _on_menu_quit(self):
         gui.Application.instance.quit()
 
-    def _on_switch_dis_mode(self, is_on):
-        if is_on:
-            self.window.set_on_layout(self._on_layout_video)
-            # self.window.set_needs_layout() 
-        else:
+    def _select_rb_display(self, idx):
+        if self.rb_display.selected_value == "Odometry":
             self.window.set_on_layout(self._on_layout_odom)
-            # self.window.set_needs_layout() 
+        elif self.rb_display.selected_value == "Video":
+            self.window.set_on_layout(self._on_layout_video)
+        else:
+            print("error in switching display")
 
     def _on_cb_grid(self, is_checked):
         if is_checked:
@@ -458,8 +485,6 @@ class VideoWindow:
         else:
             self.widget3d.scene.show_geometry("floor_grid", False)
       
-
-
     def set_top_view(self):
         self.widget3d.setup_camera(60.0, self.bounds, self.bounds.get_center())   
         camera_pos = np.array([0, 0, 50], dtype=np.float32)
