@@ -174,7 +174,7 @@ class VideoWindow:
 
         # CONFIGURE WINDOW
         self.window = gui.Application.instance.create_window(
-            "Video", 1300, 800)
+            "Drone Monitor", 1300, 800)
         self.window.set_on_layout(self._on_layout_odom)
         self.window.set_on_close(self._on_close)
 
