@@ -2,6 +2,7 @@
 
 import sys
 import time
+from time import monotonic
 import threading
 
 import capnp
@@ -10,27 +11,32 @@ import cv2
 import platform
 
 import ecal.core.core as ecal_core
+from byte_subscriber import ByteSubscriber
+
 
 capnp.add_import_hook(['../src/capnp'])
 
+import odometry3d_capnp as eCALOdometry3d
 import image_capnp as eCALImage
 import cameracontrol_capnp as eCALCameraControl
 import open3d as o3d
 import open3d.visualization.gui as gui
+import open3d.visualization.rendering as rendering
+
 
 from PIL import Image
 
-from utils import SyncedImageSubscriber
+from utils import SyncedImageSubscriber, AsyncedImageSubscriber, VioSubscriber, add_ui_on_ndarray
+from o3d_utils import create_grid_mesh
 
 isMacOS = (platform.system() == "Darwin")
 
 image_topics = []
+flag_dict = {}
+flag_dict['vio_status'] = False
+flag_dict['synced_status'] = False
+flag_dict['thumbnail_status'] = False
 
-class Recorder:
-
-    def __init__(self, image_topics):
-
-        self.image_sub = SyncedImageSubscriber(image_topics)
 
 class ChooseWindow:
 
@@ -38,14 +44,10 @@ class ChooseWindow:
         
         self.is_done = False
         
-        self.status_cama = False
-        self.status_camb = False
-        self.status_camc = False
-        self.status_camd = False
-        
+
         # CONFIGURE WINDOW
         self.window = gui.Application.instance.create_window(
-            "Camera confirm", 500, 300)
+            "Camera confirm", 500, 350)
         self.window.set_on_layout(self._on_layout)
         self.window.set_on_close(self._on_close) 
         
@@ -56,25 +58,39 @@ class ChooseWindow:
         
         self.panel_main = gui.Vert(0.5 * em, gui.Margins(margin))
 
-        self.label_description = gui.Label("Please choose the avaliable camera and click 'Ok'.")
+        self.label_description = gui.Label("Please choose the avaliable camera.")
         self.label_description.text_color = gui.Color(1.0, 0.5, 0.0)
         self.panel_main.add_child(self.label_description)
 
-        cb_cama = gui.Checkbox("cam_a")
-        cb_cama.set_on_checked(self._on_cb_cama)  # set the callback function
-        self.panel_main.add_child(cb_cama)
+        self.cb_cama = gui.Checkbox("cam_a")
+        self.panel_main.add_child(self.cb_cama)
 
-        cb_camb = gui.Checkbox("cam_b")
-        cb_camb.set_on_checked(self._on_cb_camb)  
-        self.panel_main.add_child(cb_camb)
+        self.cb_camb = gui.Checkbox("cam_b")        
+        self.cb_camb.checked = True
+        self.panel_main.add_child(self.cb_camb)
 
-        cb_camc = gui.Checkbox("cam_c")
-        cb_camc.set_on_checked(self._on_cb_camc)  
-        self.panel_main.add_child(cb_camc)
+        self.cb_camc = gui.Checkbox("cam_c")
+        self.cb_camc.checked = True
+        self.panel_main.add_child(self.cb_camc)
 
-        cb_camd = gui.Checkbox("cam_d")
-        cb_camd.set_on_checked(self._on_cb_camd)  
-        self.panel_main.add_child(cb_camd)
+        self.cb_camd = gui.Checkbox("cam_d")
+        self.cb_camd.checked = True
+        self.panel_main.add_child(self.cb_camd)
+
+        self.label_description = gui.Label("Please choose the specific features.")
+        self.label_description.text_color = gui.Color(1.0, 0.5, 0.0)
+        self.panel_main.add_child(self.label_description)
+
+        self.cb_vio = gui.Checkbox("vio is on")
+        self.cb_vio.checked = True
+        self.panel_main.add_child(self.cb_vio)
+
+        self.cb_synced = gui.Checkbox("use synced image (default asynced)")
+        self.panel_main.add_child(self.cb_synced)
+
+        self.cb_thumbnail = gui.Checkbox("use thumbnail image")
+        self.cb_thumbnail.checked = True
+        self.panel_main.add_child(self.cb_thumbnail)
         
         self.window.add_child(self.panel_main) 
 
@@ -104,47 +120,37 @@ class ChooseWindow:
                                 50)
 
 
-
-
     def _on_close(self):
         self.is_done = True
         return True  # False would cancel the close
 
-
-    def _on_cb_cama(self, is_checked):
-        if is_checked:
-            self.status_cama = True
-        else:
-            self.status_cama = False
-    
-    def _on_cb_camb(self, is_checked):
-        if is_checked:
-            self.status_camb = True
-        else:
-            self.status_camb = False    
-    
-    def _on_cb_camc(self, is_checked):
-        if is_checked:
-            self.status_camc = True
-        else:
-            self.status_camc = False    
-    
-    def _on_cb_camd(self, is_checked):
-        if is_checked:
-            self.status_camd = True
-        else:
-            self.status_camd = False
-    
     def _on_ok(self):
+        if self.cb_thumbnail.checked:
+            flag_dict['thumbnail_status'] = True
+            if self.cb_cama.checked:
+                image_topics.append("S0/thumbnail/cama")
+            if self.cb_camb.checked:
+                image_topics.append("S0/thumbnail/camb") 
+            if self.cb_camc.checked:
+                image_topics.append("S0/thumbnail/camc")
+            if self.cb_camd.checked:
+                image_topics.append("S0/thumbnail/camd")
+        else:
+            if self.cb_cama.checked:
+                image_topics.append("S0/cama")
+            if self.cb_camb.checked:
+                image_topics.append("S0/camb") 
+            if self.cb_camc.checked:
+                image_topics.append("S0/camc")
+            if self.cb_camd.checked:
+                image_topics.append("S0/camd")
+        
+        if self.cb_vio.checked:
+            flag_dict['vio_status'] = True
+        
+        if self.cb_synced.checked:
+            flag_dict['synced_status'] = True
 
-        if self.status_cama:
-            image_topics.append("S0/cama")
-        if self.status_camb:
-            image_topics.append("S0/camb")        
-        if self.status_camc:
-            image_topics.append("S0/camc")        
-        if self.status_camd:
-            image_topics.append("S0/camd")
         
         print(f"Subscribing to {image_topics}")
 
@@ -155,15 +161,11 @@ class ChooseWindow:
 
 class VideoWindow:
     MENU_QUIT = 1
+   
 
     def __init__(self):
                 
         self.is_done = False
-
-        self.streaming_status_cama = False
-        self.streaming_status_camb = False
-        self.streaming_status_camc = False
-        self.streaming_status_camd = False
 
         self.expTime_display_flag = False
         self.sensIso_display_flag = False
@@ -172,8 +174,8 @@ class VideoWindow:
 
         # CONFIGURE WINDOW
         self.window = gui.Application.instance.create_window(
-            "Video", 1300, 800)
-        self.window.set_on_layout(self._on_layout)
+            "Drone Monitor", 1300, 800)
+        self.window.set_on_layout(self._on_layout_odom)
         self.window.set_on_close(self._on_close)
 
         # CONFIGURE MENU
@@ -212,53 +214,116 @@ class VideoWindow:
         margin = 0.5 * em
         
         # side 
-        self.collapse = gui.CollapsableVert("Widgets", 0.33 * em,
+        self.collapse = gui.CollapsableVert("Control panel", 0.33 * em,
                                        gui.Margins(em, 0, 0, 0))
         
+        # change display radio buttoh
+        self.rb_display = gui.RadioButton(gui.RadioButton.HORIZ)
+        self.rb_display.set_items(["Odometry", "Video"])
+        self.rb_display.set_on_selection_changed(self._select_rb_display)
+        self.collapse.add_child(self.rb_display)
 
-        self.label_camera_control = gui.Label("Streaming control")
-        self.label_camera_control.text_color = gui.Color(1.0, 0.5, 0.0)
-        self.collapse.add_child(self.label_camera_control)
+
+        # tab 
+        tabs = gui.TabControl()
+
+        # odom tab
+        odom_tab = gui.Vert(0.5 * em, gui.Margins(8,8,16,8))
+
+        label_display_control = gui.Label("Edit odometry")
+        label_display_control.text_color = gui.Color(1.0, 0.5, 0.0)
+        odom_tab.add_child(label_display_control)
+
+        self.cb_grid = gui.Checkbox("Floor grid")
+        self.cb_grid.checked = True
+        self.cb_grid.set_on_checked(self._on_cb_grid)
+        odom_tab.add_child(self.cb_grid)
+
+        btn_clear = gui.Button("Clear path")
+        btn_clear.set_on_clicked(self._btn_clear)
+        odom_tab.add_child(btn_clear)
+
+        label_display_control = gui.Label("Camera view")
+        label_display_control.text_color = gui.Color(1.0, 0.5, 0.0)
+        odom_tab.add_child(label_display_control)
+
+        btn_top_view = gui.Button("Reset to default position")
+        btn_top_view.vertical_padding_em = 0
+        btn_top_view.horizontal_padding_em = 0
+        btn_top_view.set_on_clicked(self.set_top_view) 
+        odom_tab.add_child(btn_top_view)
         
-        cb_cama = gui.Checkbox("Start streaming cama")
-        cb_cama.set_on_checked(self._on_cb_cama)  # set the callback function
-        self.collapse.add_child(cb_cama)
+        self.cb_trace = gui.Checkbox("Enable tracing view")
+        self.cb_trace.set_on_checked(self._on_cb_tracing)
+        odom_tab.add_child(self.cb_trace)
 
-        cb_camb = gui.Checkbox("Start streaming camb")
-        cb_camb.set_on_checked(self._on_cb_camb)  # set the callback function
-        self.collapse.add_child(cb_camb)
-
-        cb_camc = gui.Checkbox("Start streaming camc")
-        cb_camc.set_on_checked(self._on_cb_camc)  # set the callback function
-        self.collapse.add_child(cb_camc)
-
-        cb_camd = gui.Checkbox("Start streaming camd")
-        cb_camd.set_on_checked(self._on_cb_camd)  # set the callback function
-        self.collapse.add_child(cb_camd)
+        tabs.add_tab("Odometry", odom_tab)
+        self.collapse.add_child(tabs)
         
-        self.label_display_control = gui.Label("Display control")
-        self.label_display_control.text_color = gui.Color(1.0, 0.5, 0.0)
-        self.collapse.add_child(self.label_display_control)
+        # video tab
+        video_tab = gui.Vert(0.5 * em, gui.Margins(8,8,8,8))
+
+        label_camera_control = gui.Label("Streaming control")
+        label_camera_control.text_color = gui.Color(1.0, 0.5, 0.0)
+        video_tab.add_child(label_camera_control)
+        
+        self.cb_cama = gui.Checkbox("Steam cama")
+        # self.cb_cama.checked = True
+        video_tab.add_child(self.cb_cama)
+
+        self.cb_camb = gui.Checkbox("Steam camb")
+        self.cb_camb.checked = True
+        video_tab.add_child(self.cb_camb)
+
+        self.cb_camc = gui.Checkbox("Steam camc")
+        self.cb_camc.checked = True
+        video_tab.add_child(self.cb_camc)
+
+        self.cb_camd = gui.Checkbox("Steam camd")
+        self.cb_camd.checked = True
+        video_tab.add_child(self.cb_camd)
+        
+        label_display_control = gui.Label("Display control")
+        label_display_control.text_color = gui.Color(1.0, 0.5, 0.0)
+        video_tab.add_child(label_display_control)
 
         switch_expTime = gui.ToggleSwitch("Display expTime")
         switch_expTime.set_on_clicked(self._on_switch_expTime)
-        self.collapse.add_child(switch_expTime)
+        video_tab.add_child(switch_expTime)
         
         switch_sensIso = gui.ToggleSwitch("Display sensIso")
         switch_sensIso.set_on_clicked(self._on_switch_sensIso)
-        self.collapse.add_child(switch_sensIso)
+        video_tab.add_child(switch_sensIso)
 
         switch_latencyDevice = gui.ToggleSwitch("Display latencyDevice")
         switch_latencyDevice.set_on_clicked(self._on_switch_latencyDevice)
-        self.collapse.add_child(switch_latencyDevice)
+        video_tab.add_child(switch_latencyDevice)
 
         switch_latencyHost = gui.ToggleSwitch("Display latencyHost")
         switch_latencyHost.set_on_clicked(self._on_switch_latencyHost)
-        self.collapse.add_child(switch_latencyHost)
+        video_tab.add_child(switch_latencyHost)
+            
+        label_info = gui.Label("Streaming mode")
+        label_info.text_color = gui.Color(1.0, 0.5, 0.0)
+        video_tab.add_child(label_info)
 
-        self.label_info = gui.Label("Information")
-        self.label_info.text_color = gui.Color(1.0, 0.5, 0.0)
-        self.collapse.add_child(self.label_info)
+        self.synced_label = gui.Label("")
+        video_tab.add_child(self.synced_label)
+
+        tabs.add_tab("Video", video_tab)
+
+
+        # message show
+        label_info = gui.Label("Vio Information")
+        label_info.text_color = gui.Color(1.0, 0.5, 0.0)
+        self.collapse.add_child(label_info)
+
+        self.proxy_vio = gui.WidgetProxy()
+        self.collapse.add_child(self.proxy_vio)
+
+        label_info = gui.Label("Camera Information")
+        label_info.text_color = gui.Color(1.0, 0.5, 0.0)
+        self.collapse.add_child(label_info)
 
         self.proxy_1 = gui.WidgetProxy()
         self.collapse.add_child(self.proxy_1)
@@ -272,8 +337,64 @@ class VideoWindow:
         self.proxy_4 = gui.WidgetProxy()
         self.collapse.add_child(self.proxy_4)
         
-        self.window.add_child(self.collapse)
+
+
+        # odom widget
         
+        self.widget3d = gui.SceneWidget()
+        self.widget3d.scene = rendering.Open3DScene(self.window.renderer)
+      
+        self.widget3d.scene.show_axes(True)
+        self.widget3d.scene.set_background([2, 1, 2, 1])
+
+        lit = rendering.MaterialRecord()
+        lit.shader = "defaultLit"
+
+        line_mat = rendering.MaterialRecord()
+        line_mat.shader = "unlitLine"
+        line_mat.line_width = 2
+
+        # add floor
+        floor_width = 50
+        floor_height = 50
+        floor = o3d.geometry.TriangleMesh.create_box(width=floor_width, height=floor_height, depth=0.01)
+        floor.compute_vertex_normals()
+        floor.translate([0, 0, 0], relative=False)  
+        floor.paint_uniform_color([0.5, 0.5, 0.5])
+        self.widget3d.scene.add_geometry("floor", floor, lit)
+
+        floor_grid = create_grid_mesh(floor_width, floor_height, 5)
+        floor_grid.translate([floor.get_center()[0], floor.get_center()[1], floor.get_max_bound()[2]], relative=False)  
+        floor_grid.paint_uniform_color([0, 0, 0])        
+        self.widget3d.scene.add_geometry("floor_grid", floor_grid, line_mat)
+
+        # add land survey model
+        land_survey = o3d.io.read_triangle_mesh("./model_data/landsurvey.obj", True, True)
+        land_survey.compute_vertex_normals()
+        land_survey.translate([0, 0, 0], relative=False)  
+        land_survey.paint_uniform_color([0.3, 0.3, 0.2])
+        # self.widget3d.scene.add_geometry("land_survey", land_survey, lit)
+
+
+        # add drone
+        self.drone = o3d.geometry.TriangleMesh.create_coordinate_frame()
+        self.drone.compute_vertex_normals()
+        self.drone.translate([0, 0, 0], relative=False)
+        self.widget3d.scene.add_geometry("drone", self.drone, lit)
+
+        self.path_line_list = []
+        self.cleaning_now = False
+
+        # add camera
+        self.bounds = self.widget3d.scene.bounding_box
+        self.drone_bound = self.drone. get_axis_aligned_bounding_box()
+        
+        self.set_top_view()
+
+
+
+
+
 
         # main panel
         self.panel_main = gui.Vert(0.5 * em, gui.Margins(margin))
@@ -294,23 +415,56 @@ class VideoWindow:
         self.panel_bottom.add_child(self.rgb_widget_4)
         self.panel_main.add_child(self.panel_bottom) 
 
-        self.window.add_child(self.panel_main) 
+        
+        self.window.add_child(self.collapse)
+        self.window.add_child(self.panel_main)
+        self.window.add_child(self.widget3d)
+
+        self.init_video = 0 
+        self.init_odom = 0
 
 
 
-    def _on_layout(self, layout_context):
+    def _on_layout_video(self, layout_context):
+
         contentRect = self.window.content_rect
         panel_main_width = 1040
+        widget3d_width = 1040
         self.collapse.frame = gui.Rect(contentRect.x, 
                                 contentRect.y,
-                                contentRect.width - panel_main_width,
+                                260,
                                 contentRect.height)
 
         self.panel_main.frame = gui.Rect(self.collapse.frame.get_right(), 
                                 contentRect.y,
                                 panel_main_width,
                                 contentRect.height)
-        
+
+        self.widget3d.frame = gui.Rect(self.panel_main.frame.get_right(),
+                        contentRect.y,
+                        widget3d_width,
+                        contentRect.height)
+    
+    def _on_layout_odom(self, layout_context):
+
+        contentRect = self.window.content_rect
+        panel_main_width = 1040
+        widget3d_width = 1040
+        self.collapse.frame = gui.Rect(contentRect.x, 
+                                contentRect.y,
+                                260,
+                                contentRect.height)
+
+        self.widget3d.frame = gui.Rect(self.collapse.frame.get_right(),
+                                contentRect.y,
+                                widget3d_width,
+                                contentRect.height)
+
+        self.panel_main.frame = gui.Rect(self.widget3d.frame.get_right(), 
+                                contentRect.y,
+                                panel_main_width,
+                                contentRect.height)
+
     def _on_close(self):
         self.is_done = True
         return True  # False would cancel the close
@@ -318,30 +472,41 @@ class VideoWindow:
     def _on_menu_quit(self):
         gui.Application.instance.quit()
 
-    def _on_cb_cama(self, is_checked):
-        if is_checked:
-            self.streaming_status_cama = True
+    def _select_rb_display(self, idx):
+        if self.rb_display.selected_value == "Odometry":
+            self.window.set_on_layout(self._on_layout_odom)
+        elif self.rb_display.selected_value == "Video":
+            self.window.set_on_layout(self._on_layout_video)
         else:
-            self.streaming_status_cama = False
-    
-    def _on_cb_camb(self, is_checked):
+            print("error in switching display")
+
+    def _on_cb_grid(self, is_checked):
         if is_checked:
-            self.streaming_status_camb = True
+            self.widget3d.scene.show_geometry("floor_grid", True)
         else:
-            self.streaming_status_camb = False    
-    
-    def _on_cb_camc(self, is_checked):
+            self.widget3d.scene.show_geometry("floor_grid", False)
+      
+    def set_top_view(self):
+        self.widget3d.setup_camera(60.0, self.bounds, self.bounds.get_center())   
+        camera_pos = np.array([0, 0, 50], dtype=np.float32)
+        target = np.array([0, 0, 0], dtype=np.float32)
+        up = np.array([1, 0, 0], dtype=np.float32)
+        self.widget3d.look_at(target, camera_pos, up)
+
+    def _on_cb_tracing(self, is_checked):
         if is_checked:
-            self.streaming_status_camc = True
+            pass
         else:
-            self.streaming_status_camc = False    
+            self.set_top_view()
     
-    def _on_cb_camd(self, is_checked):
-        if is_checked:
-            self.streaming_status_camd = True
-        else:
-            self.streaming_status_camd = False
-    
+    def _btn_clear(self):
+        self.cleaning_now = True
+
+        for line_name in self.path_line_list:
+            self.widget3d.scene.remove_geometry(line_name)
+        
+        self.cleaning_now = False
+
     def _on_switch_expTime(self, is_on):
         if is_on:
             self.expTime_display_flag = True
@@ -382,24 +547,37 @@ def read_img(window):
     # SET PROCESS STATE
     ecal_core.set_process_state(1, 1, "I feel good")
 
-    # print(type(ecal_core.mon_monitoring()[1]))
+    # set up vio subscriber
+    if (flag_dict['vio_status']):
+        vio_sub = VioSubscriber("S0/vio_odom")
+    else:
+        window.proxy_vio.set_widget(gui.Label("vio is not on"))
+    
+    # set up image subscriber
+    if (flag_dict['synced_status']):
+        window.synced_label.text = "Synced images"
+        synced_recorder = SyncedImageSubscriber(image_topics)
+        synced_recorder.rolling = True
+    else:
+        window.synced_label.text = "Asynced images"
+        asynced_recorder = AsyncedImageSubscriber(image_topics)
+        asynced_recorder.rolling = True
 
-    recorder = Recorder(image_topics)
-    recorder.image_sub.rolling = True   # ensure self.image_sub.pop_sync_queue() works
 
-    # print(ecal_core.mon_monitoring())
+ 
+
 
     def update_frame(imageName,img_ndarray):
-        if(imageName == 'S0/cama' and window.streaming_status_cama):
+        if(('cama' in imageName) and window.cb_cama.checked):
             window.rgb_widget_1.update_image(o3d.geometry.Image(img_ndarray))
 
-        if(imageName == 'S0/camb' and window.streaming_status_camb):
+        if(('camb' in imageName) and window.cb_camb.checked):
             window.rgb_widget_2.update_image(o3d.geometry.Image(img_ndarray))
         
-        if(imageName == 'S0/camc' and window.streaming_status_camc):
+        if(('camc' in imageName) and window.cb_camc.checked):
             window.rgb_widget_3.update_image(o3d.geometry.Image(img_ndarray))
         
-        if(imageName == 'S0/camd' and window.streaming_status_camd):
+        if(('camd' in imageName) and window.cb_camd.checked):
             window.rgb_widget_4.update_image(o3d.geometry.Image(img_ndarray))
 
 
@@ -415,37 +593,22 @@ def read_img(window):
 
         window.window.set_needs_layout() 
         
-
-    expMin = 10
-    expMax = 12000
-    sensMin = 100
-    sensMax = 800
+    # odom path material    
+    mat = rendering.MaterialRecord()
+    mat.shader = "unlitLine"
+    mat.line_width = 5
+    # mat.sRGB_color = [0.0, 1.0, 0.0]
     
-    progress_bar_length = 200
-    progress_bar_height = 15
-    
-    left_x = 10
-    
-    left_y_pb1 = 30
-    spacing_2pb = 30
-    left_y_pb2 = left_y_pb1 + progress_bar_height + spacing_2pb
-
-    expTime_frame_start = (left_x, left_y_pb1)
-    expTime_frame_end = (left_x + progress_bar_length, left_y_pb1 + progress_bar_height)
-    
-    sensIso_frame_start = (left_x,left_y_pb2)
-    sensIso_frame_end = (left_x + progress_bar_length, left_y_pb2 + progress_bar_height)
-
-    spacing_pb_text = 40
-    spacing_2text = 20
-    latencyDevice_coor = (left_x, left_y_pb2 + progress_bar_height + spacing_pb_text)
-    latencyHost_coor = (left_x, left_y_pb2 + progress_bar_height + spacing_pb_text + spacing_2text)
+    line_index = 0
 
     while ecal_core.ok():
 
-        # READ IN DATA
-        ecal_images = recorder.image_sub.pop_sync_queue()
-        
+        # synced mode
+        if (flag_dict['synced_status']):
+            ecal_images = synced_recorder.pop_sync_queue()
+        else:
+            ecal_images = asynced_recorder.pop_async_queue()
+
         for imageName in ecal_images:
 
             imageMsg = ecal_images[imageName]
@@ -472,51 +635,84 @@ def read_img(window):
             #convert numpy array to 3 channel
             img_ndarray = np.repeat(img_ndarray.reshape(dim[1], dim[0], 1), 3, axis=2)
 
-
-            if window.expTime_display_flag:
-                # add progress bar
-                expTime_length = int((imageMsg.exposureUSec - expMin) / (expMax - expMin) * progress_bar_length)
-                img_ndarray = cv2.rectangle(img_ndarray, expTime_frame_start, (left_x + expTime_length, expTime_frame_end[1]), (255, 0, 0),-1)
-                # add progress bar frame
-                img_ndarray = cv2.rectangle(img_ndarray, expTime_frame_start, expTime_frame_end, (255, 255, 255),2)
-                # add description
-                img_ndarray = cv2.putText(img_ndarray, 'expTime', (expTime_frame_end[0]+5, expTime_frame_start[1]), cv2.FONT_HERSHEY_TRIPLEX, 0.5, (255, 0, 0), 1)
-                img_ndarray = cv2.putText(img_ndarray, str(expMin), (expTime_frame_start[0],expTime_frame_end[1]+15), cv2.FONT_HERSHEY_TRIPLEX, 0.4, (255, 255, 255), 1)    
-                img_ndarray = cv2.putText(img_ndarray, str(expMax), (expTime_frame_end[0],expTime_frame_end[1]+15), cv2.FONT_HERSHEY_TRIPLEX, 0.4, (255, 255, 255), 1)    
-
-            if window.sensIso_display_flag:
-                # add progress bar
-                sensIso_length = int((imageMsg.gain - sensMin) / (sensMax - sensMin) * progress_bar_length)
-                img_ndarray = cv2.rectangle(img_ndarray, sensIso_frame_start, (left_x +sensIso_length, sensIso_frame_end[1]), (0, 0, 255),-1)
-                # add progress bar frame
-                img_ndarray = cv2.rectangle(img_ndarray, sensIso_frame_start, sensIso_frame_end, (255, 255, 255),2)
-                # add description
-                img_ndarray = cv2.putText(img_ndarray, 'sensIso', (sensIso_frame_end[0]+5, sensIso_frame_start[1]), cv2.FONT_HERSHEY_TRIPLEX, 0.5, (0, 0, 255), 1)    
-                img_ndarray = cv2.putText(img_ndarray, str(sensMin), (sensIso_frame_start[0],sensIso_frame_end[1]+15), cv2.FONT_HERSHEY_TRIPLEX, 0.4, (255, 255, 255), 1)    
-                img_ndarray = cv2.putText(img_ndarray, str(sensMax), (sensIso_frame_end[0],sensIso_frame_end[1]+15), cv2.FONT_HERSHEY_TRIPLEX, 0.4, (255, 255, 255), 1)    
-
-
-            # add latency text
-            if window.latencyDevice_display_flag:
-                img_ndarray = cv2.putText(img_ndarray, latencyDevice_display, latencyDevice_coor, cv2.FONT_HERSHEY_TRIPLEX, 0.5, (127, 0, 255), 1)  
+            img_ndarray = add_ui_on_ndarray(img_ndarray, imageMsg.exposureUSec, imageMsg.gain, latencyDevice_display, latencyHost_display,
+                                            window.expTime_display_flag,
+                                            window.sensIso_display_flag,
+                                            window.latencyDevice_display_flag,
+                                            window.latencyHost_display_flag)
             
-            if window.latencyHost_display_flag:
-                img_ndarray = cv2.putText(img_ndarray, latencyHost_display, latencyHost_coor, cv2.FONT_HERSHEY_TRIPLEX, 0.5, (127, 0, 255), 1)    
-
 
             if not window.is_done:
 
                 update_frame(imageName, img_ndarray)
-                if(imageName == 'S0/cama' and window.streaming_status_cama):
+                if(('cama' in imageName) and window.cb_cama.checked):
                     update_proxy(window.proxy_1,all_display)
-                if(imageName == 'S0/camb' and window.streaming_status_camb):
+                if(('camb' in imageName) and window.cb_camb.checked):
                     update_proxy(window.proxy_2,all_display)
-                if(imageName == 'S0/camc' and window.streaming_status_camc):
+                if(('camc' in imageName) and window.cb_camc.checked):
                     update_proxy(window.proxy_3,all_display)
-                if(imageName == 'S0/camd' and window.streaming_status_camd):
+                if(('camd' in imageName) and window.cb_camd.checked):
                     update_proxy(window.proxy_4,all_display)
-        
+                
+        if not window.is_done:
+            if flag_dict['vio_status']:
+                update_proxy(window.proxy_vio, vio_sub.vio_msg)
+
+                prev_x_coor = window.widget3d.scene.get_geometry_transform("drone")[0][3]
+                prev_y_coor = window.widget3d.scene.get_geometry_transform("drone")[1][3]
+                prev_z_coor = window.widget3d.scene.get_geometry_transform("drone")[2][3]
+                
+                x = vio_sub.orientation_x
+                y = vio_sub.orientation_y
+                z = vio_sub.orientation_z
+                w = vio_sub.orientation_w
+
+                drone_transform = np.array([     [1-2*y**2-2*z**2, 2*x*y - 2*w*z, 2*x*z + 2*w*y, vio_sub.position_x],
+                                                [2*x*y + 2*w*z, 1 - 2*x**2 - 2*z**2, 2*y*z - 2*w*x, vio_sub.position_y],
+                                                [2*x*z - 2*w*y, 2*y*z + 2*w*x, 1 - 2*x**2 - 2*y**2, vio_sub.position_z],
+                                                [0, 0, 0, 1]], 
+                                                dtype=np.float64)
+                window.widget3d.scene.set_geometry_transform("drone", drone_transform)
+
+                # print("trans matrix", drone_transform)
+                current_x_coor = window.widget3d.scene.get_geometry_transform("drone")[0][3]
+                current_y_coor = window.widget3d.scene.get_geometry_transform("drone")[1][3]
+                current_z_coor = window.widget3d.scene.get_geometry_transform("drone")[2][3]
+
+                # path sub line
+                vertices = np.array([
+                    [prev_x_coor, prev_y_coor, prev_z_coor],  # previous coordinate
+                    [current_x_coor, current_y_coor, current_z_coor], # updated coordinate
+                ],
+                dtype = np.float64)
+                edge = np.array([[0, 1],], dtype = np.int32)
+
+                # draw the sub line
+                if not np.array_equal(vertices[0], vertices[1]):
+                    line_path = o3d.geometry.LineSet()
+                    line_path.points = o3d.utility.Vector3dVector(vertices)
+                    line_path.lines = o3d.utility.Vector2iVector(edge)
+                    line_path.colors = o3d.utility.Vector3dVector([(1, 0, 0)])
+                    if not window.cleaning_now:
+                        line_name = "line_" + str(line_index)
+                        window.path_line_list.append(line_name)
+                        window.widget3d.scene.add_geometry(line_name, line_path, mat, False)
+                        line_index +=1
+            else:
+                pass
+            
+            if window.cb_trace.checked:
+
+                window.widget3d.setup_camera(60.0, window.bounds, window.bounds.get_center())   
+                camera_pos = np.array([current_x_coor, current_y_coor, current_z_coor+15], dtype=np.float32)
+                target = np.array([current_x_coor, current_y_coor, current_z_coor], dtype=np.float32)
+                up = np.array([1, 0, 0], dtype=np.float32)
+                window.widget3d.look_at(target, camera_pos, up)
+            
+
+
         window.window.post_redraw()
+
 
 
     # finalize eCAL API
@@ -534,7 +730,7 @@ def main():
     
     choose_app.run()    
 
-    # main app
+    # initialised main app
     app = gui.Application.instance
     app.initialize()
     
@@ -546,10 +742,10 @@ def main():
     
     time.sleep(3)
     
+    # run main app
     app.run()
     
         
 
 if __name__ == "__main__":
-    
     main() 
