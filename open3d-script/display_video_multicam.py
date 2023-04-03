@@ -247,7 +247,13 @@ class VideoWindow:
         label_display_control.text_color = gui.Color(1.0, 0.5, 0.0)
         odom_tab.add_child(label_display_control)
 
-        btn_top_view = gui.Button("Reset to default position")
+        btn_start_view = gui.Button("Set to starting position")
+        btn_start_view.vertical_padding_em = 0
+        btn_start_view.horizontal_padding_em = 0
+        btn_start_view.set_on_clicked(self.set_start_view) 
+        odom_tab.add_child(btn_start_view)
+
+        btn_top_view = gui.Button("Set to top position")
         btn_top_view.vertical_padding_em = 0
         btn_top_view.horizontal_padding_em = 0
         btn_top_view.set_on_clicked(self.set_top_view) 
@@ -355,17 +361,20 @@ class VideoWindow:
         line_mat.line_width = 2
 
         # add land survey model
-        land_survey = o3d.io.read_triangle_mesh("./model_data/10239-Tag-Survey-report v7.obj", True, True)
-        land_survey.compute_vertex_normals()
-        land_survey.paint_uniform_color([0.0, 0.0, 0.0])
-        self.widget3d.scene.add_geometry("land_survey", land_survey, lit)
+        self.land_survey = o3d.io.read_triangle_mesh("./model_data/10239-Tag-Survey-report v7.obj", True, True)
+        self.land_survey.compute_vertex_normals()
+        self.land_survey.rotate(R =[[0, 1, 0],
+                                    [-1,  0, 0],
+                                    [0,  0, 1]], center = [0, 0, 0])
+        self.land_survey.paint_uniform_color([0.0, 0.0, 0.0])
+        self.widget3d.scene.add_geometry("land_survey", self.land_survey, lit)
 
         # add floor
-        floor_width = 70
-        floor_height = 70
+        floor_width = 60
+        floor_height = 100
         floor = o3d.geometry.TriangleMesh.create_box(width=floor_width, height=floor_height, depth=0.01)
         floor.compute_vertex_normals()
-        floor.translate([land_survey.get_center()[0], land_survey.get_center()[1], land_survey.get_min_bound()[2]], relative=False)  
+        floor.translate([self.land_survey.get_center()[0], self.land_survey.get_center()[1], self.land_survey.get_min_bound()[2]], relative=False)  
         floor.paint_uniform_color([0.5, 0.5, 0.5])
         self.widget3d.scene.add_geometry("floor", floor, lit)
 
@@ -390,8 +399,7 @@ class VideoWindow:
         self.bounds = self.widget3d.scene.bounding_box
         self.drone_bound = self.drone. get_axis_aligned_bounding_box()
         
-        self.set_top_view()
-
+        self.set_start_view()
 
 
 
@@ -487,18 +495,26 @@ class VideoWindow:
         else:
             self.widget3d.scene.show_geometry("floor_grid", False)
       
-    def set_top_view(self):
+    def set_start_view(self):
         self.widget3d.setup_camera(60.0, self.bounds, self.bounds.get_center())   
         camera_pos = np.array([0, 0, 50], dtype=np.float32)
         target = np.array([0, 0, 0], dtype=np.float32)
         up = np.array([1, 0, 0], dtype=np.float32)
         self.widget3d.look_at(target, camera_pos, up)
 
+    def set_top_view(self):
+        self.widget3d.setup_camera(60.0, self.bounds, self.bounds.get_center())   
+        camera_pos = np.array([self.land_survey.get_center()[0], self.land_survey.get_center()[1], 70], dtype=np.float32)
+        target = np.array([self.land_survey.get_center()[0], self.land_survey.get_center()[1], 0], dtype=np.float32)
+        up = np.array([1, 0, 0], dtype=np.float32)
+        self.widget3d.look_at(target, camera_pos, up)
+    
+
     def _on_cb_tracing(self, is_checked):
         if is_checked:
             pass
         else:
-            self.set_top_view()
+            self.set_start_view()
     
     def _btn_clear(self):
         self.cleaning_now = True
