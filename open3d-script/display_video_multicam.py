@@ -354,26 +354,27 @@ class VideoWindow:
         line_mat.shader = "unlitLine"
         line_mat.line_width = 2
 
+        # add land survey model
+        land_survey = o3d.io.read_triangle_mesh("./model_data/10239-Tag-Survey-report v7.obj", True, True)
+        land_survey.compute_vertex_normals()
+        land_survey.paint_uniform_color([0.0, 0.0, 0.0])
+        self.widget3d.scene.add_geometry("land_survey", land_survey, lit)
+
         # add floor
-        floor_width = 50
-        floor_height = 50
+        floor_width = 70
+        floor_height = 70
         floor = o3d.geometry.TriangleMesh.create_box(width=floor_width, height=floor_height, depth=0.01)
         floor.compute_vertex_normals()
-        floor.translate([0, 0, 0], relative=False)  
+        floor.translate([land_survey.get_center()[0], land_survey.get_center()[1], land_survey.get_min_bound()[2]], relative=False)  
         floor.paint_uniform_color([0.5, 0.5, 0.5])
         self.widget3d.scene.add_geometry("floor", floor, lit)
 
         floor_grid = create_grid_mesh(floor_width, floor_height, 5)
         floor_grid.translate([floor.get_center()[0], floor.get_center()[1], floor.get_max_bound()[2]], relative=False)  
-        floor_grid.paint_uniform_color([0, 0, 0])        
+        floor_grid.paint_uniform_color([0.1, 0.1, 0.1])        
         self.widget3d.scene.add_geometry("floor_grid", floor_grid, line_mat)
 
-        # add land survey model
-        land_survey = o3d.io.read_triangle_mesh("./model_data/landsurvey.obj", True, True)
-        land_survey.compute_vertex_normals()
-        land_survey.translate([0, 0, 0], relative=False)  
-        land_survey.paint_uniform_color([0.3, 0.3, 0.2])
-        # self.widget3d.scene.add_geometry("land_survey", land_survey, lit)
+
 
 
         # add drone
