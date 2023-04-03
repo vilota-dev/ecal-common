@@ -95,7 +95,7 @@ class ChooseWindow:
         self.window.add_child(self.panel_main) 
 
 
-        self.button_layout = gui.Horiz(0.5 * em, gui.Margins(margin))
+        self.button_layout = gui.Horiz(0.5 * em, gui.Margins(margin,margin,margin,margin))
         self.button_layout.add_stretch()
 
         self.ok_button = gui.Button("Ok")
