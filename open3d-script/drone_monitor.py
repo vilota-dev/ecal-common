@@ -618,6 +618,15 @@ def read_img(window):
     
     line_index = 0
 
+    file_last_time = time.monotonic()
+
+    # clear the csv file at init
+    with open("position_xyz.csv", "w") as csvfile:
+        csvfile.truncate()
+
+    with open("orientation_xyzw.csv", "w") as csvfile:
+        csvfile.truncate()
+
     while ecal_core.ok():
 
         # synced mode
@@ -691,6 +700,17 @@ def read_img(window):
                                                 dtype=np.float64)
                 window.widget3d.scene.set_geometry_transform("drone", drone_transform)
 
+                # store the imu to the csv file
+                if((time.monotonic() - file_last_time) > 1):
+                    file_last_time = time.monotonic()
+                    f_position = open("position_xyz.csv", "a")
+                    f_orientation = open("orientation_xyzw.csv", "a")
+                    f_position.write(f"{file_last_time}, {vio_sub.position_x}, {vio_sub.position_y}, {vio_sub.position_z} \n")
+                    f_orientation.write(f"{file_last_time}, {x}, {y}, {z}, {w}\n")
+                    f_position.close()
+                    f_orientation.close()
+
+
                 # print("trans matrix", drone_transform)
                 current_x_coor = window.widget3d.scene.get_geometry_transform("drone")[0][3]
                 current_y_coor = window.widget3d.scene.get_geometry_transform("drone")[1][3]
@@ -729,7 +749,6 @@ def read_img(window):
 
 
         window.window.post_redraw()
-
 
 
     # finalize eCAL API
