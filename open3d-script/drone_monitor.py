@@ -239,6 +239,11 @@ class VideoWindow:
         self.cb_grid.set_on_checked(self._on_cb_grid)
         odom_tab.add_child(self.cb_grid)
 
+        self.cb_land = gui.Checkbox("Land model")
+        self.cb_land.checked = True
+        self.cb_land.set_on_checked(self._on_cb_land)
+        odom_tab.add_child(self.cb_land)
+
         btn_clear = gui.Button("Clear path")
         btn_clear.set_on_clicked(self._btn_clear)
         odom_tab.add_child(btn_clear)
@@ -494,6 +499,12 @@ class VideoWindow:
             self.widget3d.scene.show_geometry("floor_grid", True)
         else:
             self.widget3d.scene.show_geometry("floor_grid", False)
+
+    def _on_cb_land(self, is_checked):
+        if is_checked:
+            self.widget3d.scene.show_geometry("land_survey", True)
+        else:
+            self.widget3d.scene.show_geometry("land_survey", False)
       
     def set_start_view(self):
         self.widget3d.setup_camera(60.0, self.bounds, self.bounds.get_center())   
