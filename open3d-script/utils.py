@@ -93,7 +93,7 @@ class SyncedImageSubscriber:
         self.assemble = {}
         self.assemble_index = -1
 
-        # self.lock = Lock()
+        self.lock = Lock()
 
         for topic in topics:
             print(f"subscribing to image topic {topic}")
@@ -125,7 +125,7 @@ class SyncedImageSubscriber:
             while True:
 
                 if m_queue.empty():
-                    return
+                    break
 
                 imageMsg = m_queue.get()
 
@@ -188,16 +188,17 @@ class SyncedImageSubscriber:
 
             self.queues[topic_name].put(imageMsg)
 
-            self.queue_update()
+            with self.lock:
+                self.queue_update()
 
     def pop_latest(self):
 
-        # with self.lock:
+        with self.lock:
 
-        if self.latest == None:
-            return {}
-        else:
-            return self.latest
+            if self.latest == None:
+                return {}
+            else:
+                return self.latest
 
     def pop_sync_queue(self):
         # not protected for read
@@ -226,7 +227,7 @@ class AsyncedImageSubscriber:
 
         self.assemble = {}
 
-        # self.lock = Lock()
+        self.lock = Lock()
 
         for topic in topics:
             print(f"subscribing to image topic {topic}")
@@ -251,7 +252,7 @@ class AsyncedImageSubscriber:
             while True:
 
                 if m_queue.empty():
-                    return
+                    break
 
                 imageMsg = m_queue.get()
                 self.assemble[queueName] = imageMsg
@@ -285,16 +286,17 @@ class AsyncedImageSubscriber:
 
             self.queues[topic_name].put(imageMsg)
 
-            self.queue_update()
+            with self.lock:
+                self.queue_update()
 
     def pop_latest(self):
 
-        # with self.lock:
+        with self.lock:
 
-        if self.latest == None:
-            return {}
-        else:
-            return self.latest
+            if self.latest == None:
+                return {}
+            else:
+                return self.latest
 
     def pop_async_queue(self):
         # not protected for read

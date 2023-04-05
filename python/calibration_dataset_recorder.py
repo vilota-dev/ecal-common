@@ -49,6 +49,7 @@ class RosbagDatasetRecorder:
 
         self.recording = False
         self.thread = None
+        self.thread_image = None
 
         self.num_snapshot = 0
 
@@ -62,14 +63,19 @@ class RosbagDatasetRecorder:
         if self.bag is None:
             self.bag = rosbag.Bag(self.bag_name, mode='w', compression=rosbag.Compression.NONE)
 
-        if self.mode == DatasetMode.CONTINUOUS and self.recording is False:
-            self.thread_image = threading.Thread(target=self.continuous_recording_thread_image)
-            self.thread_imu = threading.Thread(target=self.continuous_recording_thread_imu)
-            self.recording = True
-            self.image_sub.rolling = True
-            self.imu_sub.rolling = True
-            self.thread_image.start()
-            self.thread_imu.start()
+        if self.mode == DatasetMode.CONTINUOUS:
+
+            if self.recording:
+                print("continuous recording already started")
+                return
+            else:
+                self.thread_image = threading.Thread(target=self.continuous_recording_thread_image)
+                self.thread_imu = threading.Thread(target=self.continuous_recording_thread_imu)
+                self.recording = True
+                self.image_sub.rolling = True
+                self.imu_sub.rolling = True
+                self.thread_image.start()
+                self.thread_imu.start()
 
         
         if self.mode == DatasetMode.SNAPSHOTS:
