@@ -3,6 +3,7 @@
 import sys
 import time
 from time import monotonic
+from datetime import datetime
 import threading
 
 import capnp
@@ -631,11 +632,13 @@ def read_img(window):
 
     file_last_time = time.monotonic()
 
-    # clear the csv file at init
-    with open("position_xyz.csv", "w") as csvfile:
+    # clear the csv file at init    
+    current_time = datetime.now()
+
+    with open(f"./odom_data/position_{current_time}.csv", "w") as csvfile:
         csvfile.truncate()
 
-    with open("orientation_xyzw.csv", "w") as csvfile:
+    with open(f"./odom_data/orientation_{current_time}.csv", "w") as csvfile:
         csvfile.truncate()
 
     while ecal_core.ok():
@@ -714,8 +717,8 @@ def read_img(window):
                 # store the imu to the csv file
                 if((time.monotonic() - file_last_time) > 1):
                     file_last_time = time.monotonic()
-                    f_position = open("position_xyz.csv", "a")
-                    f_orientation = open("orientation_xyzw.csv", "a")
+                    f_position = open(f"./odom_data/position_{current_time}.csv", "a")
+                    f_orientation = open(f"./odom_data/orientation_{current_time}.csv", "a")
                     f_position.write(f"{file_last_time}, {vio_sub.position_x}, {vio_sub.position_y}, {vio_sub.position_z} \n")
                     f_orientation.write(f"{file_last_time}, {x}, {y}, {z}, {w}\n")
                     f_position.close()
