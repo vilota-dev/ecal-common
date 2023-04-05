@@ -575,11 +575,6 @@ def read_img(window):
     # SET PROCESS STATE
     ecal_core.set_process_state(1, 1, "I feel good")
 
-    # set up vio subscriber
-    if (flag_dict['vio_status']):
-        vio_sub = VioSubscriber("S0/vio_odom")
-    else:
-        window.proxy_vio.set_widget(gui.Label("vio is not on"))
     
     # set up image subscriber
     if (flag_dict['synced_status']):
@@ -621,22 +616,6 @@ def read_img(window):
 
         window.window.set_needs_layout() 
         
-    # odom path material    
-    mat = rendering.MaterialRecord()
-    mat.shader = "unlitLine"
-    mat.line_width = 5
-    # mat.sRGB_color = [0.0, 1.0, 0.0]
-    
-    line_index = 0
-
-    file_last_time = time.monotonic()
-
-    # clear the csv file at init
-    with open("position_xyz.csv", "w") as csvfile:
-        csvfile.truncate()
-
-    with open("orientation_xyzw.csv", "w") as csvfile:
-        csvfile.truncate()
 
     while ecal_core.ok():
 
@@ -691,6 +670,58 @@ def read_img(window):
                 if(('camd' in imageName) and window.cb_camd.checked):
                     update_proxy(window.proxy_4,all_display)
                 
+        
+        window.window.post_redraw()
+
+
+    # finalize eCAL API
+    ecal_core.finalize()
+
+
+
+def read_odom(window):
+
+
+    # set up vio subscriber
+    if (flag_dict['vio_status']):
+        vio_sub = VioSubscriber("S0/vio_odom")
+    else:
+        window.proxy_vio.set_widget(gui.Label("vio is not on"))
+    
+    print("222")
+
+    def update_proxy(proxy,display_msg):
+        
+        widget = proxy.get_widget()
+       
+        if widget is None:
+            label = gui.Label(display_msg)
+            proxy.set_widget(label)
+        else:
+            widget.text = display_msg
+
+        window.window.set_needs_layout() 
+        
+    # odom path material    
+    mat = rendering.MaterialRecord()
+    mat.shader = "unlitLine"
+    mat.line_width = 5
+    # mat.sRGB_color = [0.0, 1.0, 0.0]
+    
+    line_index = 0
+
+    file_last_time = time.monotonic()
+
+    # clear the csv file at init
+    with open("position_xyz.csv", "w") as csvfile:
+        csvfile.truncate()
+
+    with open("orientation_xyzw.csv", "w") as csvfile:
+        csvfile.truncate()
+
+    while ecal_core.ok():
+
+          
         if not window.is_done:
             if flag_dict['vio_status']:
                 update_proxy(window.proxy_vio, vio_sub.vio_msg)
@@ -762,9 +793,6 @@ def read_img(window):
         window.window.post_redraw()
 
 
-    # finalize eCAL API
-    ecal_core.finalize()
-
 
 
 def main(): 
@@ -787,8 +815,14 @@ def main():
     img_reading_thread= threading.Thread(target=read_img,args=(win,))
     img_reading_thread.start()
     
-    time.sleep(3)
-    
+    time.sleep(5)
+
+    # NEW THREAD FOR ODOMETRY READING    
+    odom_reading_thread= threading.Thread(target=read_odom,args=(win,))
+    odom_reading_thread.start()
+
+    time.sleep(1)
+
     # run main app
     app.run()
     
