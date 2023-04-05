@@ -355,7 +355,7 @@ class VideoWindow:
         
         self.widget3d = gui.SceneWidget()
         self.widget3d.scene = rendering.Open3DScene(self.window.renderer)
-      
+        self.widget3d.scene.set_lighting(o3d.visualization.rendering.Open3DScene.LightingProfile.NO_SHADOWS , np.array([0, 0, 1]).astype(np.float32))        
         self.widget3d.scene.show_axes(True)
         self.widget3d.scene.set_background([2, 1, 2, 1])
 
