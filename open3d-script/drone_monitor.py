@@ -245,6 +245,16 @@ class VideoWindow:
         self.cb_land.set_on_checked(self._on_cb_land)
         odom_tab.add_child(self.cb_land)
 
+        self.land_current_degree = 0
+        self.land_rotate_interval = 5
+        btn_land_clk = gui.Button(f"CLockwise {self.land_rotate_interval}\u00B0")
+        btn_land_clk.set_on_clicked(self._btn_land_clk)
+        odom_tab.add_child(btn_land_clk)        
+        
+        btn_land_anti = gui.Button(f"Anticlockwise {self.land_rotate_interval}\u00B0")
+        btn_land_anti.set_on_clicked(self._btn_land_anti)
+        odom_tab.add_child(btn_land_anti)
+
         btn_clear = gui.Button("Clear path")
         btn_clear.set_on_clicked(self._btn_clear)
         odom_tab.add_child(btn_clear)
@@ -527,7 +537,34 @@ class VideoWindow:
             pass
         else:
             self.set_start_view()
-    
+
+    def _btn_land_clk(self):
+
+        self.land_current_degree += self.land_rotate_interval
+
+        theta = np.deg2rad(self.land_current_degree)
+        # Construct the rotation matrix
+        rotation = np.array([[np.cos(theta), np.sin(theta), 0, 0],
+                    [-np.sin(theta), np.cos(theta), 0, 0],
+                    [0, 0, 1, 0],
+                    [0, 0, 0, 1]], dtype=np.float64)
+
+        self.widget3d.scene.set_geometry_transform("land_survey", rotation)
+
+
+    def _btn_land_anti(self):
+        
+        self.land_current_degree -= self.land_rotate_interval
+
+        theta = np.deg2rad(self.land_current_degree)
+        # Construct the rotation matrix
+        rotation = np.array([[np.cos(theta), np.sin(theta), 0, 0],
+                    [-np.sin(theta), np.cos(theta), 0, 0],
+                    [0, 0, 1, 0],
+                    [0, 0, 0, 1]], dtype=np.float64)
+        self.widget3d.scene.set_geometry_transform("land_survey", rotation)
+
+
     def _btn_clear(self):
         self.cleaning_now = True
 
