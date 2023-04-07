@@ -67,11 +67,11 @@ class ChooseWindow:
         self.panel_main.add_child(self.cb_cama)
 
         self.cb_camb = gui.Checkbox("cam_b")        
-        self.cb_camb.checked = True
+        # self.cb_camb.checked = True
         self.panel_main.add_child(self.cb_camb)
 
         self.cb_camc = gui.Checkbox("cam_c")
-        self.cb_camc.checked = True
+        # self.cb_camc.checked = True
         self.panel_main.add_child(self.cb_camc)
 
         self.cb_camd = gui.Checkbox("cam_d")
@@ -294,11 +294,11 @@ class VideoWindow:
         video_tab.add_child(self.cb_cama)
 
         self.cb_camb = gui.Checkbox("Steam camb")
-        self.cb_camb.checked = True
+        # self.cb_camb.checked = True
         video_tab.add_child(self.cb_camb)
 
         self.cb_camc = gui.Checkbox("Steam camc")
-        self.cb_camc.checked = True
+        # self.cb_camc.checked = True
         video_tab.add_child(self.cb_camc)
 
         self.cb_camd = gui.Checkbox("Steam camd")
