@@ -280,7 +280,7 @@ void CameraInternal::cameraCallbackInternal(const char* ecal_topic_name, ecal::I
             }else
                 msg->image = rawImg.clone();
         }else if (ecal_msg.getEncoding() == ecal::Image::Encoding::YUV420) {
-            msg->encoding = "bgr8";
+            msg->encoding = "yuv420";
             const cv::Mat rawImg(ecal_msg.getHeight() * 3 / 2, ecal_msg.getWidth(), CV_8UC1, 
                 const_cast<unsigned char*>(ecal_msg.getData().asBytes().begin()));
             
