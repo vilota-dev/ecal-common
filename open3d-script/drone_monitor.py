@@ -690,9 +690,6 @@ def read_img(window):
 
             imageMsg = ecal_images[imageName]
 
-            img_ndarray = np.frombuffer(imageMsg.data, dtype=np.uint8)
-            img_ndarray = img_ndarray.reshape((imageMsg.height, imageMsg.width, 1))
-            
             expTime_display = f"expTime = {imageMsg.exposureUSec}" 
             sensIso_display = f"sensIso = {imageMsg.gain}" 
             latencyDevice_display = f"device latency = {imageMsg.header.latencyDevice / 1e6 :.2f} ms" 
@@ -701,16 +698,31 @@ def read_img(window):
 
             all_display = imageName + '\n' + expTime_display + '\n' + sensIso_display + '\n' + latencyDevice_display + '\n' + latencyHost_display 
 
-            # resize to smaller resolution
-            # scale_percent = 40 # percent of original size
-            # width = int(img_ndarray.shape[1] * scale_percent / 100)
-            # height = int(img_ndarray.shape[0] * scale_percent / 100)
-            
             dim = (512, 320) #width height
-            img_ndarray = cv2.resize(img_ndarray, dim, interpolation = cv2.INTER_NEAREST)
 
-            #convert numpy array to 3 channel
-            img_ndarray = np.repeat(img_ndarray.reshape(dim[1], dim[0], 1), 3, axis=2)
+            if imageMsg.encoding == "mono8":
+
+                img_ndarray = np.frombuffer(imageMsg.data, dtype=np.uint8)
+                img_ndarray = img_ndarray.reshape((imageMsg.height, imageMsg.width, 1))
+
+                # resize to smaller resolution
+                # scale_percent = 40 # percent of original size
+                # width = int(img_ndarray.shape[1] * scale_percent / 100)
+                # height = int(img_ndarray.shape[0] * scale_percent / 100)
+                
+                
+                img_ndarray = cv2.resize(img_ndarray, dim, interpolation = cv2.INTER_NEAREST)
+
+                #convert numpy array to 3 channel
+                img_ndarray = np.repeat(img_ndarray.reshape(dim[1], dim[0], 1), 3, axis=2)
+            elif imageMsg.encoding == "yuv420":
+                img_ndarray = np.frombuffer(imageMsg.data, dtype=np.uint8)
+                img_ndarray = img_ndarray.reshape((imageMsg.height * 3 // 2, imageMsg.width, 1))
+
+                img_ndarray = cv2.cvtColor(img_ndarray, cv2.COLOR_YUV2RGB_IYUV)
+                img_ndarray = cv2.resize(img_ndarray, dim, interpolation = cv2.INTER_NEAREST)
+            else:
+                raise RuntimeError("unknown encoding: " + imageMsg.encoding)
 
             img_ndarray = add_ui_on_ndarray(img_ndarray, imageMsg.exposureUSec, imageMsg.gain, latencyDevice_display, latencyHost_display,
                                             window.expTime_display_flag,
