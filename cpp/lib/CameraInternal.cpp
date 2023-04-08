@@ -286,10 +286,11 @@ void CameraInternal::cameraCallbackInternal(const char* ecal_topic_name, ecal::I
             
             if (m_params.half_resolution) {
                 cv::Mat midImg;
-                cv::resize(rawImg, midImg, cv::Size(), 0.5, 0.5);
-                cv::cvtColor(midImg, msg->image, cv::COLOR_YUV2BGR_IYUV);
+                cv::resize(rawImg, msg->image, cv::Size(), 0.5, 0.5);
+                // cv::cvtColor(midImg, msg->image, cv::COLOR_YUV2BGR_IYUV);
             }else
-                cv::cvtColor(rawImg, msg->image, cv::COLOR_YUV2BGR_IYUV);
+                msg->image = rawImg;
+                // cv::cvtColor(rawImg, msg->image, cv::COLOR_YUV2BGR_IYUV);
         }else{
             throw std::runtime_error("not implemented encoding");
         }
