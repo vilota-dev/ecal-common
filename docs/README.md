@@ -11,6 +11,26 @@
 
 ### 1. Install Package
 
+eCAL ([official website](https://eclipse-ecal.github.io/ecal/getting_started/setup.html))
+```bash
+# for cpp
+sudo add-apt-repository ppa:ecal/ecal-latest
+# sudo apt-get update
+sudo apt-get install ecal
+
+sudo apt install libprotobuf-dev libprotoc-dev protobuf-compiler
+
+# for python
+sudo apt install python3 python3-pip
+sudo apt install python3-ecal5
+```
+
+CapnProto ([official website](https://capnproto.org/install.html))
+```bash
+# for python
+pip3 install pycapnp
+```
+
 In a terminal, install the .deb file using `apt`.
 ```bash
 # remove previous package, if installed
@@ -34,7 +54,7 @@ Use a good quality USB3 Type-C cable to connect Vilota product to host computer.
 ```bash
 lsusb
 ```
-In the output, you should be able to see a device being detected, with ID `03e7:f63c`. If it does not appear:
+In the output, you should be able to see a device being detected, with ID `03e7:f63c` or `03e7:2485`. If it does not appear:
 - check cable quality, and check there are green and red LED lights lit up on Vilota product's PCB board;
 - check udev rule has been applied properly. 
 
