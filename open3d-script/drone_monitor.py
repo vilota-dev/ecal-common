@@ -246,7 +246,7 @@ class VideoWindow:
         odom_tab.add_child(self.cb_land)
 
         self.land_current_degree = 0
-        self.land_rotate_interval = 5
+        self.land_rotate_interval = 2
         btn_land_clk = gui.Button(f"CLockwise {self.land_rotate_interval}\u00B0")
         btn_land_clk.set_on_clicked(self._btn_land_clk)
         odom_tab.add_child(btn_land_clk)        
@@ -394,7 +394,7 @@ class VideoWindow:
         self.land_survey.paint_uniform_color([0.0, 0.0, 0.0])
         self.widget3d.scene.add_geometry("land_survey", self.land_survey, lit)
         self.widget3d.scene.show_geometry("land_survey", False)
-        
+
         # add floor
         floor_width = 60
         floor_height = 100
