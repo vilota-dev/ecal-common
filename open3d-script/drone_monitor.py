@@ -241,7 +241,7 @@ class VideoWindow:
         odom_tab.add_child(self.cb_grid)
 
         self.cb_land = gui.Checkbox("Land model")
-        self.cb_land.checked = True
+        self.cb_land.checked = False
         self.cb_land.set_on_checked(self._on_cb_land)
         odom_tab.add_child(self.cb_land)
 
@@ -258,6 +258,15 @@ class VideoWindow:
         btn_clear = gui.Button("Clear path")
         btn_clear.set_on_clicked(self._btn_clear)
         odom_tab.add_child(btn_clear)
+
+        btn_st_pt = gui.Button("Mark starting point")
+        btn_st_pt.set_on_clicked(self._btn_st_pt)
+        odom_tab.add_child(btn_st_pt)
+
+        btn_st_clr = gui.Button("Clear starting point")
+        btn_st_clr.set_on_clicked(self._btn_st_clr)
+        odom_tab.add_child(btn_st_clr)
+
 
         label_display_control = gui.Label("Camera view")
         label_display_control.text_color = gui.Color(1.0, 0.5, 0.0)
@@ -572,6 +581,28 @@ class VideoWindow:
             self.widget3d.scene.remove_geometry(line_name)
         
         self.cleaning_now = False
+    
+    def _btn_st_pt(self):
+        if not self.widget3d.scene.has_geometry("starting point"):
+            x_coor = self.widget3d.scene.get_geometry_transform("drone")[0][3]
+            y_coor = self.widget3d.scene.get_geometry_transform("drone")[1][3]
+            z_coor = self.widget3d.scene.get_geometry_transform("drone")[2][3]
+            
+            lit = rendering.MaterialRecord()
+            lit.shader = "defaultLit"
+
+            radius = 0.2
+            center = np.array([x_coor, y_coor, z_coor])
+            ball_mesh = o3d.geometry.TriangleMesh.create_sphere(radius=radius)
+            ball_mesh.compute_vertex_normals()
+            ball_mesh.translate(center)
+            ball_mesh.paint_uniform_color([0.0, 0.0, 0.9])
+            self.widget3d.scene.add_geometry("starting point",ball_mesh,lit)
+
+    def _btn_st_clr(self):
+        if self.widget3d.scene.has_geometry("starting point"):
+            self.widget3d.scene.remove_geometry("starting point")
+
 
     def _on_switch_expTime(self, is_on):
         if is_on:
