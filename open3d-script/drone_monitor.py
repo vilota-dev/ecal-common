@@ -393,7 +393,8 @@ class VideoWindow:
                                     [0,  0, 1]], center = [0, 0, 0])
         self.land_survey.paint_uniform_color([0.0, 0.0, 0.0])
         self.widget3d.scene.add_geometry("land_survey", self.land_survey, lit)
-
+        self.widget3d.scene.show_geometry("land_survey", False)
+        
         # add floor
         floor_width = 60
         floor_height = 100
