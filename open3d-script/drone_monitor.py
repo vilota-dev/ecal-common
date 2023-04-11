@@ -37,6 +37,7 @@ flag_dict = {}
 flag_dict['vio_status'] = False
 flag_dict['synced_status'] = False
 flag_dict['thumbnail_status'] = False
+flag_dict['csv_status'] = False
 
 
 class ChooseWindow:
@@ -92,7 +93,10 @@ class ChooseWindow:
         self.cb_thumbnail = gui.Checkbox("use thumbnail image")
         self.cb_thumbnail.checked = True
         self.panel_main.add_child(self.cb_thumbnail)
-        
+
+        self.cb_csv = gui.Checkbox("store odometry data in csv")
+        self.panel_main.add_child(self.cb_csv)
+
         self.window.add_child(self.panel_main) 
 
 
@@ -152,7 +156,9 @@ class ChooseWindow:
         if self.cb_synced.checked:
             flag_dict['synced_status'] = True
 
-        
+        if self.cb_csv.checked:
+            flag_dict['csv_status'] = True
+
         print(f"Subscribing to {image_topics}")
 
         gui.Application.instance.quit()
@@ -740,14 +746,15 @@ def read_img(window):
 
     file_last_time = time.monotonic()
 
-    # clear the csv file at init    
-    current_time = datetime.now()
+    if flag_dict['csv_status']:
+        # clear the csv file at init    
+        current_time = datetime.now()
 
-    with open(f"./odom_data/position_{current_time}.csv", "w") as csvfile:
-        csvfile.truncate()
+        with open(f"./odom_data/position_{current_time}.csv", "w") as csvfile:
+            csvfile.truncate()
 
-    with open(f"./odom_data/orientation_{current_time}.csv", "w") as csvfile:
-        csvfile.truncate()
+        with open(f"./odom_data/orientation_{current_time}.csv", "w") as csvfile:
+            csvfile.truncate()
 
     while ecal_core.ok():
 
@@ -835,7 +842,7 @@ def read_img(window):
                 window.widget3d.scene.set_geometry_transform("drone", drone_transform)
 
                 # store the imu to the csv file
-                if((time.monotonic() - file_last_time) > 1):
+                if((time.monotonic() - file_last_time) > 1) and flag_dict['csv_status']:
                     file_last_time = time.monotonic()
                     f_position = open(f"./odom_data/position_{current_time}.csv", "a")
                     f_orientation = open(f"./odom_data/orientation_{current_time}.csv", "a")
