@@ -259,14 +259,33 @@ class VideoWindow:
         btn_clear.set_on_clicked(self._btn_clear)
         odom_tab.add_child(btn_clear)
 
+        label_display_control = gui.Label("Points")
+        label_display_control.text_color = gui.Color(1.0, 0.5, 0.0)
+        odom_tab.add_child(label_display_control)
+
         btn_st_pt = gui.Button("Mark starting point")
+        btn_st_pt.vertical_padding_em = 0
+        btn_st_pt.horizontal_padding_em = 0
         btn_st_pt.set_on_clicked(self._btn_st_pt)
         odom_tab.add_child(btn_st_pt)
 
         btn_st_clr = gui.Button("Clear starting point")
+        btn_st_clr.vertical_padding_em = 0
+        btn_st_clr.horizontal_padding_em = 0
         btn_st_clr.set_on_clicked(self._btn_st_clr)
         odom_tab.add_child(btn_st_clr)
 
+        btn_ed_pt = gui.Button("Mark end point")
+        btn_ed_pt.vertical_padding_em = 0
+        btn_ed_pt.horizontal_padding_em = 0
+        btn_ed_pt.set_on_clicked(self._btn_ed_pt)
+        odom_tab.add_child(btn_ed_pt)
+
+        btn_ed_clr = gui.Button("Clear end point")
+        btn_ed_clr.vertical_padding_em = 0
+        btn_ed_clr.horizontal_padding_em = 0
+        btn_ed_clr.set_on_clicked(self._btn_ed_clr)
+        odom_tab.add_child(btn_ed_clr)
 
         label_display_control = gui.Label("Camera view")
         label_display_control.text_color = gui.Color(1.0, 0.5, 0.0)
@@ -604,6 +623,26 @@ class VideoWindow:
         if self.widget3d.scene.has_geometry("starting point"):
             self.widget3d.scene.remove_geometry("starting point")
 
+    def _btn_ed_pt(self):
+        if not self.widget3d.scene.has_geometry("end point"):
+            x_coor = self.widget3d.scene.get_geometry_transform("drone")[0][3]
+            y_coor = self.widget3d.scene.get_geometry_transform("drone")[1][3]
+            z_coor = self.widget3d.scene.get_geometry_transform("drone")[2][3]
+            
+            lit = rendering.MaterialRecord()
+            lit.shader = "defaultLit"
+
+            radius = 0.2
+            center = np.array([x_coor, y_coor, z_coor])
+            ball_mesh = o3d.geometry.TriangleMesh.create_sphere(radius=radius)
+            ball_mesh.compute_vertex_normals()
+            ball_mesh.translate(center)
+            ball_mesh.paint_uniform_color([0.0, 0.9, 0.0])
+            self.widget3d.scene.add_geometry("end point",ball_mesh,lit)
+
+    def _btn_ed_clr(self):
+        if self.widget3d.scene.has_geometry("end point"):
+            self.widget3d.scene.remove_geometry("end point")
 
     def _on_switch_expTime(self, is_on):
         if is_on:
