@@ -1,11 +1,11 @@
 from ecal.core.subscriber import MessageSubscriber
 
-class ByteSubscriber(MessageSubscriber):
+class CapnpSubscriber(MessageSubscriber):
   """Specialized publisher subscribes to raw bytes
   """
-  def __init__(self, name):
-    topic_type = "base:byte"
-    super(ByteSubscriber, self).__init__(name, topic_type)
+  def __init__(self, type, name):
+    self.topic_type = "capnp:" + type
+    super(CapnpSubscriber, self).__init__(name, self.topic_type)
     self.callback = None
 
   def receive(self, timeout=0):
@@ -29,11 +29,11 @@ class ByteSubscriber(MessageSubscriber):
   def rem_callback(self, callback):
     """ remove callback function for incoming messages
 
-    :param callback: python callback function (f(topic_name, msg, time))
+    :param callback: python callback function (f(topic_type, topic_name, msg, time))
 
     """
     self.c_subscriber.rem_callback(self._on_receive)
     self.callback = None
 
   def _on_receive(self, topic_name, msg, time):
-    self.callback(topic_name, msg, time)    
+    self.callback(self.topic_type, topic_name, msg, time)    

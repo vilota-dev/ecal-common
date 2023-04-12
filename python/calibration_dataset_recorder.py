@@ -34,9 +34,9 @@ class DatasetMode(Enum):
 
 class RosbagDatasetRecorder:
 
-    def __init__(self, image_topics, imu_topic, bag_name, mode):
+    def __init__(self, image_types, image_topics, imu_topic, bag_name, mode):
 
-        self.image_sub = SyncedImageSubscriber(image_topics)
+        self.image_sub = SyncedImageSubscriber(image_types, image_topics)
 
         if mode == DatasetMode.CONTINUOUS:
             self.imu_sub = ImuSubscriber(imu_topic)
@@ -189,7 +189,8 @@ def main(mode):
     # set process state
     ecal_core.set_process_state(1, 1, "I feel good")
 
-    image_topics = ["S0/camb", "S0/camd", "S0/camc"]
+    image_topics = ["S0/cama", "S0/camb"]
+    image_types = ["Image", "Image"]
     imu_topic = "S0/imu"
 
     if mode == DatasetMode.SNAPSHOTS:
@@ -199,7 +200,7 @@ def main(mode):
     
     bag_name = "./rosbag/" + datetime.now().strftime("%Y-%m-%d-%I-%M-%S-") + mode_type + "_recording.bag"
 
-    recorder = RosbagDatasetRecorder(image_topics, imu_topic, bag_name , mode)
+    recorder = RosbagDatasetRecorder(image_types, image_topics, imu_topic, bag_name , mode)
 
     def handler(signum, frame):
         print("ctrl-c is pressed")
@@ -231,7 +232,7 @@ def main(mode):
                 imageMsg = image_dict[imageName]
                 mat = np.frombuffer(imageMsg.data, dtype=np.uint8)
                 mat = mat.reshape((imageMsg.height, imageMsg.width, 1))
-                mat_resized = image_resize(mat, width=640)
+                mat_resized = image_resize(mat, width=120)
 
                 image_list.append(mat_resized)
 

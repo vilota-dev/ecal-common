@@ -11,10 +11,10 @@
 
 ### 1. Install Package
 
-eCAL ([official website](https://eclipse-ecal.github.io/ecal/getting_started/setup.html))
+eCAL 5.11 ([official website](https://eclipse-ecal.github.io/ecal/getting_started/setup.html))
 ```bash
 # for cpp
-sudo add-apt-repository ppa:ecal/ecal-latest
+sudo add-apt-repository ppa:ecal/ecal-5.11
 # sudo apt-get update
 sudo apt-get install ecal
 
