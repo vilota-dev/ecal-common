@@ -398,12 +398,10 @@ def image_resize(image, width = None, height = None, inter = cv2.INTER_AREA):
 
 
 
-def add_ui_on_ndarray(img_ndarray, exposureUSec, gain, latencyDevice_display, latencyHost_display, expTime_display_flag, sensIso_display_flag, latencyDevice_display_flag,latencyHost_display_flag):
+def add_ui_on_ndarray(img_ndarray, exposureUSec, gain, latencyDevice_display, latencyHost_display, expMax, sensIsoMax, expTime_display_flag, sensIso_display_flag, latencyDevice_display_flag,latencyHost_display_flag):
     
     expMin = 10
-    expMax = 12000
     sensMin = 100
-    sensMax = 800
     
     progress_bar_length = 200
     progress_bar_height = 15
@@ -438,14 +436,14 @@ def add_ui_on_ndarray(img_ndarray, exposureUSec, gain, latencyDevice_display, la
 
     if sensIso_display_flag:
         # add progress bar
-        sensIso_length = int((gain - sensMin) / (sensMax - sensMin) * progress_bar_length)
+        sensIso_length = int((gain - sensMin) / (sensIsoMax - sensMin) * progress_bar_length)
         img_ndarray = cv2.rectangle(img_ndarray, sensIso_frame_start, (left_x +sensIso_length, sensIso_frame_end[1]), (0, 0, 255),-1)
         # add progress bar frame
         img_ndarray = cv2.rectangle(img_ndarray, sensIso_frame_start, sensIso_frame_end, (255, 255, 255),2)
         # add description
         img_ndarray = cv2.putText(img_ndarray, 'sensIso', (sensIso_frame_end[0]+5, sensIso_frame_start[1]), cv2.FONT_HERSHEY_TRIPLEX, 0.5, (0, 0, 255), 1)    
         img_ndarray = cv2.putText(img_ndarray, str(sensMin), (sensIso_frame_start[0],sensIso_frame_end[1]+15), cv2.FONT_HERSHEY_TRIPLEX, 0.4, (255, 255, 255), 1)    
-        img_ndarray = cv2.putText(img_ndarray, str(sensMax), (sensIso_frame_end[0],sensIso_frame_end[1]+15), cv2.FONT_HERSHEY_TRIPLEX, 0.4, (255, 255, 255), 1)    
+        img_ndarray = cv2.putText(img_ndarray, str(sensIsoMax), (sensIso_frame_end[0],sensIso_frame_end[1]+15), cv2.FONT_HERSHEY_TRIPLEX, 0.4, (255, 255, 255), 1)    
 
 
     # add latency text
@@ -457,3 +455,11 @@ def add_ui_on_ndarray(img_ndarray, exposureUSec, gain, latencyDevice_display, la
 
     return img_ndarray    
 
+def is_numeric(input_str):
+    if input_str == "":
+        return False
+    else:
+        for char in input_str:
+            if not char.isnumeric():
+                return False
+        return True

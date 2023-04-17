@@ -27,7 +27,7 @@ import open3d.visualization.rendering as rendering
 
 from PIL import Image
 
-from utils import SyncedImageSubscriber, AsyncedImageSubscriber, VioSubscriber, add_ui_on_ndarray
+from utils import SyncedImageSubscriber, AsyncedImageSubscriber, VioSubscriber, add_ui_on_ndarray, is_numeric
 from o3d_utils import create_grid_mesh
 
 isMacOS = (platform.system() == "Darwin")
@@ -178,6 +178,9 @@ class VideoWindow:
         self.sensIso_display_flag = False
         self.latencyDevice_display_flag = False
         self.latencyHost_display_flag = False
+
+        self.expMax = 12000
+        self.sensIsoMax = 800
 
         # CONFIGURE WINDOW
         self.window = gui.Application.instance.create_window(
@@ -342,7 +345,17 @@ class VideoWindow:
         label_display_control = gui.Label("Display control")
         label_display_control.text_color = gui.Color(1.0, 0.5, 0.0)
         video_tab.add_child(label_display_control)
+        
+        tedit_expMax = gui.TextEdit()
+        tedit_expMax.placeholder_text = "Enter the max exposure"
+        tedit_expMax.set_on_value_changed(self._tedit_expMax)
+        video_tab.add_child(tedit_expMax)
 
+        tedit_sensIsoMax = gui.TextEdit()
+        tedit_sensIsoMax.placeholder_text = "Enter the max exposure"
+        tedit_sensIsoMax.set_on_value_changed(self._tedit_sensIsoMax)
+        video_tab.add_child(tedit_sensIsoMax)
+        
         switch_expTime = gui.ToggleSwitch("Display expTime")
         switch_expTime.set_on_clicked(self._on_switch_expTime)
         video_tab.add_child(switch_expTime)
@@ -649,7 +662,19 @@ class VideoWindow:
     def _btn_ed_clr(self):
         if self.widget3d.scene.has_geometry("end point"):
             self.widget3d.scene.remove_geometry("end point")
+    
+    def _tedit_expMax(self, new_text):
+        if is_numeric(new_text):            
+            self.expMax = int(new_text)
+        else:
+            self.expMax = 12000
 
+    def _tedit_sensIsoMax(self, new_text):
+        if is_numeric(new_text):
+            self.sensIsoMax = int(new_text)
+        else:
+            self.sensIsoMax = 800
+            
     def _on_switch_expTime(self, is_on):
         if is_on:
             self.expTime_display_flag = True
@@ -803,6 +828,7 @@ def read_img(window):
                 raise RuntimeError("unknown encoding: " + imageMsg.encoding)
 
             img_ndarray = add_ui_on_ndarray(img_ndarray, imageMsg.exposureUSec, imageMsg.gain, latencyDevice_display, latencyHost_display,
+                                            window.expMax, window.sensIsoMax,
                                             window.expTime_display_flag,
                                             window.sensIso_display_flag,
                                             window.latencyDevice_display_flag,
