@@ -8,7 +8,7 @@ import numpy as np
 import cv2
 
 import ecal.core.core as ecal_core
-from byte_subscriber import ByteSubscriber
+from capnp_subscriber import CapnpSubscriber
 
 capnp.add_import_hook(['../src/capnp'])
 
@@ -16,7 +16,7 @@ import image_capnp as eCALImage
 
 imshow_map = {}
 
-def callback(topic_name, msg, ts):
+def callback(type, topic_name, msg, ts):
 
     # need to remove the .decode() function within the Python API of ecal.core.subscriber StringSubscriber
     with eCALImage.Image.from_bytes(msg) as imageMsg:
@@ -83,7 +83,7 @@ def main():
         raise RuntimeError("Need to pass in exactly one parameter for topic")
 
     print(f"Streaming topic {topic}")
-    sub = ByteSubscriber(topic)
+    sub = CapnpSubscriber("Image", topic)
     sub.set_callback(callback)
     
     # idle main thread

@@ -3,6 +3,7 @@
 import sys
 import time
 from time import monotonic
+from datetime import datetime
 import threading
 
 import capnp
@@ -26,7 +27,7 @@ import open3d.visualization.rendering as rendering
 
 from PIL import Image
 
-from utils import SyncedImageSubscriber, AsyncedImageSubscriber, VioSubscriber, add_ui_on_ndarray
+from utils import SyncedImageSubscriber, AsyncedImageSubscriber, VioSubscriber, add_ui_on_ndarray, is_numeric
 from o3d_utils import create_grid_mesh
 
 isMacOS = (platform.system() == "Darwin")
@@ -36,6 +37,7 @@ flag_dict = {}
 flag_dict['vio_status'] = False
 flag_dict['synced_status'] = False
 flag_dict['thumbnail_status'] = False
+flag_dict['csv_status'] = False
 
 
 class ChooseWindow:
@@ -66,11 +68,11 @@ class ChooseWindow:
         self.panel_main.add_child(self.cb_cama)
 
         self.cb_camb = gui.Checkbox("cam_b")        
-        self.cb_camb.checked = True
+        # self.cb_camb.checked = True
         self.panel_main.add_child(self.cb_camb)
 
         self.cb_camc = gui.Checkbox("cam_c")
-        self.cb_camc.checked = True
+        # self.cb_camc.checked = True
         self.panel_main.add_child(self.cb_camc)
 
         self.cb_camd = gui.Checkbox("cam_d")
@@ -91,7 +93,10 @@ class ChooseWindow:
         self.cb_thumbnail = gui.Checkbox("use thumbnail image")
         self.cb_thumbnail.checked = True
         self.panel_main.add_child(self.cb_thumbnail)
-        
+
+        self.cb_csv = gui.Checkbox("store odometry data in csv")
+        self.panel_main.add_child(self.cb_csv)
+
         self.window.add_child(self.panel_main) 
 
 
@@ -151,7 +156,9 @@ class ChooseWindow:
         if self.cb_synced.checked:
             flag_dict['synced_status'] = True
 
-        
+        if self.cb_csv.checked:
+            flag_dict['csv_status'] = True
+
         print(f"Subscribing to {image_topics}")
 
         gui.Application.instance.quit()
@@ -171,6 +178,9 @@ class VideoWindow:
         self.sensIso_display_flag = False
         self.latencyDevice_display_flag = False
         self.latencyHost_display_flag = False
+
+        self.expMax = 12000
+        self.sensIsoMax = 800
 
         # CONFIGURE WINDOW
         self.window = gui.Application.instance.create_window(
@@ -240,13 +250,51 @@ class VideoWindow:
         odom_tab.add_child(self.cb_grid)
 
         self.cb_land = gui.Checkbox("Land model")
-        self.cb_land.checked = True
+        self.cb_land.checked = False
         self.cb_land.set_on_checked(self._on_cb_land)
         odom_tab.add_child(self.cb_land)
+
+        self.land_current_degree = 0
+        self.land_rotate_interval = 2
+        btn_land_clk = gui.Button(f"CLockwise {self.land_rotate_interval}\u00B0")
+        btn_land_clk.set_on_clicked(self._btn_land_clk)
+        odom_tab.add_child(btn_land_clk)        
+        
+        btn_land_anti = gui.Button(f"Anticlockwise {self.land_rotate_interval}\u00B0")
+        btn_land_anti.set_on_clicked(self._btn_land_anti)
+        odom_tab.add_child(btn_land_anti)
 
         btn_clear = gui.Button("Clear path")
         btn_clear.set_on_clicked(self._btn_clear)
         odom_tab.add_child(btn_clear)
+
+        label_display_control = gui.Label("Points")
+        label_display_control.text_color = gui.Color(1.0, 0.5, 0.0)
+        odom_tab.add_child(label_display_control)
+
+        btn_st_pt = gui.Button("Mark starting point")
+        btn_st_pt.vertical_padding_em = 0
+        btn_st_pt.horizontal_padding_em = 0
+        btn_st_pt.set_on_clicked(self._btn_st_pt)
+        odom_tab.add_child(btn_st_pt)
+
+        btn_st_clr = gui.Button("Clear starting point")
+        btn_st_clr.vertical_padding_em = 0
+        btn_st_clr.horizontal_padding_em = 0
+        btn_st_clr.set_on_clicked(self._btn_st_clr)
+        odom_tab.add_child(btn_st_clr)
+
+        btn_ed_pt = gui.Button("Mark end point")
+        btn_ed_pt.vertical_padding_em = 0
+        btn_ed_pt.horizontal_padding_em = 0
+        btn_ed_pt.set_on_clicked(self._btn_ed_pt)
+        odom_tab.add_child(btn_ed_pt)
+
+        btn_ed_clr = gui.Button("Clear end point")
+        btn_ed_clr.vertical_padding_em = 0
+        btn_ed_clr.horizontal_padding_em = 0
+        btn_ed_clr.set_on_clicked(self._btn_ed_clr)
+        odom_tab.add_child(btn_ed_clr)
 
         label_display_control = gui.Label("Camera view")
         label_display_control.text_color = gui.Color(1.0, 0.5, 0.0)
@@ -283,11 +331,11 @@ class VideoWindow:
         video_tab.add_child(self.cb_cama)
 
         self.cb_camb = gui.Checkbox("Steam camb")
-        self.cb_camb.checked = True
+        # self.cb_camb.checked = True
         video_tab.add_child(self.cb_camb)
 
         self.cb_camc = gui.Checkbox("Steam camc")
-        self.cb_camc.checked = True
+        # self.cb_camc.checked = True
         video_tab.add_child(self.cb_camc)
 
         self.cb_camd = gui.Checkbox("Steam camd")
@@ -297,7 +345,17 @@ class VideoWindow:
         label_display_control = gui.Label("Display control")
         label_display_control.text_color = gui.Color(1.0, 0.5, 0.0)
         video_tab.add_child(label_display_control)
+        
+        tedit_expMax = gui.TextEdit()
+        tedit_expMax.placeholder_text = "Enter the max exposure"
+        tedit_expMax.set_on_value_changed(self._tedit_expMax)
+        video_tab.add_child(tedit_expMax)
 
+        tedit_sensIsoMax = gui.TextEdit()
+        tedit_sensIsoMax.placeholder_text = "Enter the max exposure"
+        tedit_sensIsoMax.set_on_value_changed(self._tedit_sensIsoMax)
+        video_tab.add_child(tedit_sensIsoMax)
+        
         switch_expTime = gui.ToggleSwitch("Display expTime")
         switch_expTime.set_on_clicked(self._on_switch_expTime)
         video_tab.add_child(switch_expTime)
@@ -354,7 +412,7 @@ class VideoWindow:
         
         self.widget3d = gui.SceneWidget()
         self.widget3d.scene = rendering.Open3DScene(self.window.renderer)
-      
+        self.widget3d.scene.set_lighting(o3d.visualization.rendering.Open3DScene.LightingProfile.NO_SHADOWS , np.array([0, 0, 1]).astype(np.float32))        
         self.widget3d.scene.show_axes(True)
         self.widget3d.scene.set_background([2, 1, 2, 1])
 
@@ -373,6 +431,7 @@ class VideoWindow:
                                     [0,  0, 1]], center = [0, 0, 0])
         self.land_survey.paint_uniform_color([0.0, 0.0, 0.0])
         self.widget3d.scene.add_geometry("land_survey", self.land_survey, lit)
+        self.widget3d.scene.show_geometry("land_survey", False)
 
         # add floor
         floor_width = 60
@@ -526,7 +585,34 @@ class VideoWindow:
             pass
         else:
             self.set_start_view()
-    
+
+    def _btn_land_clk(self):
+
+        self.land_current_degree += self.land_rotate_interval
+
+        theta = np.deg2rad(self.land_current_degree)
+        # Construct the rotation matrix
+        rotation = np.array([[np.cos(theta), np.sin(theta), 0, 0],
+                    [-np.sin(theta), np.cos(theta), 0, 0],
+                    [0, 0, 1, 0],
+                    [0, 0, 0, 1]], dtype=np.float64)
+
+        self.widget3d.scene.set_geometry_transform("land_survey", rotation)
+
+
+    def _btn_land_anti(self):
+        
+        self.land_current_degree -= self.land_rotate_interval
+
+        theta = np.deg2rad(self.land_current_degree)
+        # Construct the rotation matrix
+        rotation = np.array([[np.cos(theta), np.sin(theta), 0, 0],
+                    [-np.sin(theta), np.cos(theta), 0, 0],
+                    [0, 0, 1, 0],
+                    [0, 0, 0, 1]], dtype=np.float64)
+        self.widget3d.scene.set_geometry_transform("land_survey", rotation)
+
+
     def _btn_clear(self):
         self.cleaning_now = True
 
@@ -534,7 +620,61 @@ class VideoWindow:
             self.widget3d.scene.remove_geometry(line_name)
         
         self.cleaning_now = False
+    
+    def _btn_st_pt(self):
+        if not self.widget3d.scene.has_geometry("starting point"):
+            x_coor = self.widget3d.scene.get_geometry_transform("drone")[0][3]
+            y_coor = self.widget3d.scene.get_geometry_transform("drone")[1][3]
+            z_coor = self.widget3d.scene.get_geometry_transform("drone")[2][3]
+            
+            lit = rendering.MaterialRecord()
+            lit.shader = "defaultLit"
 
+            radius = 0.2
+            center = np.array([x_coor, y_coor, z_coor])
+            ball_mesh = o3d.geometry.TriangleMesh.create_sphere(radius=radius)
+            ball_mesh.compute_vertex_normals()
+            ball_mesh.translate(center)
+            ball_mesh.paint_uniform_color([0.0, 0.0, 0.9])
+            self.widget3d.scene.add_geometry("starting point",ball_mesh,lit)
+
+    def _btn_st_clr(self):
+        if self.widget3d.scene.has_geometry("starting point"):
+            self.widget3d.scene.remove_geometry("starting point")
+
+    def _btn_ed_pt(self):
+        if not self.widget3d.scene.has_geometry("end point"):
+            x_coor = self.widget3d.scene.get_geometry_transform("drone")[0][3]
+            y_coor = self.widget3d.scene.get_geometry_transform("drone")[1][3]
+            z_coor = self.widget3d.scene.get_geometry_transform("drone")[2][3]
+            
+            lit = rendering.MaterialRecord()
+            lit.shader = "defaultLit"
+
+            radius = 0.2
+            center = np.array([x_coor, y_coor, z_coor])
+            ball_mesh = o3d.geometry.TriangleMesh.create_sphere(radius=radius)
+            ball_mesh.compute_vertex_normals()
+            ball_mesh.translate(center)
+            ball_mesh.paint_uniform_color([0.0, 0.9, 0.0])
+            self.widget3d.scene.add_geometry("end point",ball_mesh,lit)
+
+    def _btn_ed_clr(self):
+        if self.widget3d.scene.has_geometry("end point"):
+            self.widget3d.scene.remove_geometry("end point")
+    
+    def _tedit_expMax(self, new_text):
+        if is_numeric(new_text):            
+            self.expMax = int(new_text)
+        else:
+            self.expMax = 12000
+
+    def _tedit_sensIsoMax(self, new_text):
+        if is_numeric(new_text):
+            self.sensIsoMax = int(new_text)
+        else:
+            self.sensIsoMax = 800
+            
     def _on_switch_expTime(self, is_on):
         if is_on:
             self.expTime_display_flag = True
@@ -616,6 +756,22 @@ def read_img(window):
 
         window.window.set_needs_layout() 
         
+    # odom path material    
+    mat = rendering.MaterialRecord()
+    mat.shader = "unlitLine"
+    mat.line_width = 5
+    # mat.sRGB_color = [0.0, 1.0, 0.0]
+    
+    line_index = 0
+
+    file_last_time = time.monotonic()
+
+    # clear the csv file at init
+    with open("position_xyz.csv", "w") as csvfile:
+        csvfile.truncate()
+
+    with open("orientation_xyzw.csv", "w") as csvfile:
+        csvfile.truncate()
 
     while ecal_core.ok():
 
@@ -629,9 +785,6 @@ def read_img(window):
 
             imageMsg = ecal_images[imageName]
 
-            img_ndarray = np.frombuffer(imageMsg.data, dtype=np.uint8)
-            img_ndarray = img_ndarray.reshape((imageMsg.height, imageMsg.width, 1))
-            
             expTime_display = f"expTime = {imageMsg.exposureUSec}" 
             sensIso_display = f"sensIso = {imageMsg.gain}" 
             latencyDevice_display = f"device latency = {imageMsg.header.latencyDevice / 1e6 :.2f} ms" 
@@ -640,18 +793,34 @@ def read_img(window):
 
             all_display = imageName + '\n' + expTime_display + '\n' + sensIso_display + '\n' + latencyDevice_display + '\n' + latencyHost_display 
 
-            # resize to smaller resolution
-            # scale_percent = 40 # percent of original size
-            # width = int(img_ndarray.shape[1] * scale_percent / 100)
-            # height = int(img_ndarray.shape[0] * scale_percent / 100)
-            
             dim = (512, 320) #width height
-            img_ndarray = cv2.resize(img_ndarray, dim, interpolation = cv2.INTER_NEAREST)
 
-            #convert numpy array to 3 channel
-            img_ndarray = np.repeat(img_ndarray.reshape(dim[1], dim[0], 1), 3, axis=2)
+            if imageMsg.encoding == "mono8":
+
+                img_ndarray = np.frombuffer(imageMsg.data, dtype=np.uint8)
+                img_ndarray = img_ndarray.reshape((imageMsg.height, imageMsg.width, 1))
+
+                # resize to smaller resolution
+                # scale_percent = 40 # percent of original size
+                # width = int(img_ndarray.shape[1] * scale_percent / 100)
+                # height = int(img_ndarray.shape[0] * scale_percent / 100)
+                
+                
+                img_ndarray = cv2.resize(img_ndarray, dim, interpolation = cv2.INTER_NEAREST)
+
+                #convert numpy array to 3 channel
+                img_ndarray = np.repeat(img_ndarray.reshape(dim[1], dim[0], 1), 3, axis=2)
+            elif imageMsg.encoding == "yuv420":
+                img_ndarray = np.frombuffer(imageMsg.data, dtype=np.uint8)
+                img_ndarray = img_ndarray.reshape((imageMsg.height * 3 // 2, imageMsg.width, 1))
+
+                img_ndarray = cv2.cvtColor(img_ndarray, cv2.COLOR_YUV2RGB_IYUV)
+                img_ndarray = cv2.resize(img_ndarray, dim, interpolation = cv2.INTER_NEAREST)
+            else:
+                raise RuntimeError("unknown encoding: " + imageMsg.encoding)
 
             img_ndarray = add_ui_on_ndarray(img_ndarray, imageMsg.exposureUSec, imageMsg.gain, latencyDevice_display, latencyHost_display,
+                                            window.expMax, window.sensIsoMax,
                                             window.expTime_display_flag,
                                             window.sensIso_display_flag,
                                             window.latencyDevice_display_flag,
@@ -743,10 +912,10 @@ def read_odom(window):
                 window.widget3d.scene.set_geometry_transform("drone", drone_transform)
 
                 # store the imu to the csv file
-                if((time.monotonic() - file_last_time) > 1):
+                if((time.monotonic() - file_last_time) > 1) and flag_dict['csv_status']:
                     file_last_time = time.monotonic()
-                    f_position = open("position_xyz.csv", "a")
-                    f_orientation = open("orientation_xyzw.csv", "a")
+                    f_position = open(f"./odom_data/position_{current_time}.csv", "a")
+                    f_orientation = open(f"./odom_data/orientation_{current_time}.csv", "a")
                     f_position.write(f"{file_last_time}, {vio_sub.position_x}, {vio_sub.position_y}, {vio_sub.position_z} \n")
                     f_orientation.write(f"{file_last_time}, {x}, {y}, {z}, {w}\n")
                     f_position.close()

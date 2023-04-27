@@ -34,9 +34,9 @@ class DatasetMode(Enum):
 
 class RosbagDatasetRecorder:
 
-    def __init__(self, image_topics, imu_topic, bag_name, mode):
+    def __init__(self, image_types, image_topics, imu_topic, bag_name, mode):
 
-        self.image_sub = SyncedImageSubscriber(image_topics)
+        self.image_sub = SyncedImageSubscriber(image_types, image_topics)
 
         if mode == DatasetMode.CONTINUOUS:
             self.imu_sub = ImuSubscriber(imu_topic)
@@ -189,7 +189,8 @@ def main(mode):
     # set process state
     ecal_core.set_process_state(1, 1, "I feel good")
 
-    image_topics = ["S0/camb", "S0/camd", "S0/camc"]
+    image_topics = ["S0/cama", "S0/camb"]
+    image_types = ["Image", "Image"]
     imu_topic = "S0/imu"
 
     if mode == DatasetMode.SNAPSHOTS:
@@ -199,7 +200,7 @@ def main(mode):
     
     bag_name = "./rosbag/" + datetime.now().strftime("%Y-%m-%d-%I-%M-%S-") + mode_type + "_recording.bag"
 
-    recorder = RosbagDatasetRecorder(image_topics, imu_topic, bag_name , mode)
+    recorder = RosbagDatasetRecorder(image_types, image_topics, imu_topic, bag_name , mode)
 
     def handler(signum, frame):
         print("ctrl-c is pressed")
@@ -216,36 +217,38 @@ def main(mode):
     while ecal_core.ok():
         image_dict = recorder.image_sub.pop_latest()
 
-        image_list = []
-        image_name = ""
+        if len(image_dict) != 0:
+            
+            image_list = []
+            image_name = ""
 
-        group = 0
-        idx = 0
+            group = 0
+            idx = 0
 
-        for imageName in image_dict:
+            for imageName in image_topics:
 
-            image_name += imageName + " "
+                image_name += imageName + " "
 
-            imageMsg = image_dict[imageName]
-            mat = np.frombuffer(imageMsg.data, dtype=np.uint8)
-            mat = mat.reshape((imageMsg.height, imageMsg.width, 1))
-            mat_resized = image_resize(mat, width=640)
+                imageMsg = image_dict[imageName]
+                mat = np.frombuffer(imageMsg.data, dtype=np.uint8)
+                mat = mat.reshape((imageMsg.height, imageMsg.width, 1))
+                mat_resized = image_resize(mat, width=120)
 
-            image_list.append(mat_resized)
+                image_list.append(mat_resized)
 
-            idx += 1
+                idx += 1
 
-            if idx == 3: # set maximum 3 images in a preview window
-                image_name = f"[group {group}] " + image_name
+                if idx == 2: # set maximum 3 images in a preview window
+                    image_name = f"[group {group}] " + image_name
 
-                cv2.imshow(image_name, cv2.hconcat(image_list))
+                    cv2.imshow(image_name, cv2.hconcat(image_list))
 
-                group += 1
-                image_name = ""
-                image_list = []
+                    group += 1
+                    image_name = ""
+                    image_list = []
 
-        if (len(image_list)):
-            cv2.imshow(f"[group {group}] " + image_name, cv2.hconcat(image_list))
+            if (len(image_list)):
+                cv2.imshow(f"[group {group}] " + image_name, cv2.hconcat(image_list))
 
         key = cv2.waitKey(10)
         if key == ord('q'):
@@ -259,8 +262,8 @@ def main(mode):
 
 if __name__ == "__main__":
 
-    # main(DatasetMode.SNAPSHOTS) # for camera calibration
-    main(DatasetMode.CONTINUOUS) # for camera-imu calibration
+    main(DatasetMode.SNAPSHOTS) # for camera calibration
+    # main(DatasetMode.CONTINUOUS) # for camera-imu calibration
 
     # NOTE: for continuous mode, we have to make sure eCAL is configured optimally
     # https://github.com/eclipse-ecal/ecal/issues/869#issuecomment-1304970327

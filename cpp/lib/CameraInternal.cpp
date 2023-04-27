@@ -280,16 +280,17 @@ void CameraInternal::cameraCallbackInternal(const char* ecal_topic_name, ecal::I
             }else
                 msg->image = rawImg.clone();
         }else if (ecal_msg.getEncoding() == ecal::Image::Encoding::YUV420) {
-            msg->encoding = "bgr8";
+            msg->encoding = "yuv420";
             const cv::Mat rawImg(ecal_msg.getHeight() * 3 / 2, ecal_msg.getWidth(), CV_8UC1, 
                 const_cast<unsigned char*>(ecal_msg.getData().asBytes().begin()));
             
             if (m_params.half_resolution) {
                 cv::Mat midImg;
-                cv::resize(rawImg, midImg, cv::Size(), 0.5, 0.5);
-                cv::cvtColor(midImg, msg->image, cv::COLOR_YUV2BGR_IYUV);
+                cv::resize(rawImg, msg->image, cv::Size(), 0.5, 0.5);
+                // cv::cvtColor(midImg, msg->image, cv::COLOR_YUV2BGR_IYUV);
             }else
-                cv::cvtColor(rawImg, msg->image, cv::COLOR_YUV2BGR_IYUV);
+                msg->image = rawImg;
+                // cv::cvtColor(rawImg, msg->image, cv::COLOR_YUV2BGR_IYUV);
         }else{
             throw std::runtime_error("not implemented encoding");
         }
