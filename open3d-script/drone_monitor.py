@@ -23,11 +23,14 @@ import cameracontrol_capnp as eCALCameraControl
 import open3d as o3d
 import open3d.visualization.gui as gui
 import open3d.visualization.rendering as rendering
+import matplotlib.image as mpimg
 
+from scipy.spatial.transform import Rotation as R
+import sophus as sp
 
 from PIL import Image
 
-from utils import SyncedImageSubscriber, AsyncedImageSubscriber, VioSubscriber, add_ui_on_ndarray, is_numeric
+from utils import TagDetectionsSubscriber, SyncedImageSubscriber, AsyncedImageSubscriber, VioSubscriber, add_ui_on_ndarray, is_numeric
 from o3d_utils import create_grid_mesh
 
 isMacOS = (platform.system() == "Darwin")
@@ -178,6 +181,7 @@ class VideoWindow:
         self.sensIso_display_flag = False
         self.latencyDevice_display_flag = False
         self.latencyHost_display_flag = False
+        self.tagDebug_display_flag = False
 
         self.expMax = 12000
         self.sensIsoMax = 800
@@ -371,6 +375,10 @@ class VideoWindow:
         switch_latencyHost = gui.ToggleSwitch("Display latencyHost")
         switch_latencyHost.set_on_clicked(self._on_switch_latencyHost)
         video_tab.add_child(switch_latencyHost)
+
+        switch_tagDebug = gui.ToggleSwitch("Display tag debug image")
+        switch_tagDebug.set_on_clicked(self._on_switch_tagDebug)
+        video_tab.add_child(switch_tagDebug)
             
         label_info = gui.Label("Streaming mode")
         label_info.text_color = gui.Color(1.0, 0.5, 0.0)
@@ -406,7 +414,8 @@ class VideoWindow:
         self.proxy_4 = gui.WidgetProxy()
         self.collapse.add_child(self.proxy_4)
         
-
+        self.proxy_tag = gui.WidgetProxy()
+        self.collapse.add_child(self.proxy_tag)
 
         # odom widget
         
@@ -496,7 +505,73 @@ class VideoWindow:
         self.init_video = 0 
         self.init_odom = 0
 
+        # tags
+        self.lit = lit
+        self.tag_geometries = []
+        self.tag_labels = []
 
+    def destroy_tags(self):
+        for tag in self.tag_geometries:
+            self.widget3d.scene.remove_geometry(tag)
+        for label in self.tag_labels:
+            self.widget3d.remove_3d_label(label)
+        self.tag_geometries = []
+        self.tag_labels = []
+
+    def add_tags(self, stream, tags):
+        if (not tags is None):
+            camera_frame_msg = tags.cameraExtrinsic.bodyFrame
+            body_T_camera = self._capnp_se3_to_sophus_se3(camera_frame_msg)
+            origin_T_body = sp.SE3(self.widget3d.scene.get_geometry_transform("drone"))
+
+            for tag in tags.tags:
+                tag_name = f"tag_{tag.id} ({stream})"
+                tag_axis_name = f"tag_axis_{tag.id} ({stream})"
+                if not self.widget3d.scene.has_geometry(tag_name):
+                    # im_raw = o3d.io.read_image("assets/apriltag.png")
+                    # tag_image = o3d.geometry.Image(im_raw)
+                    # width = tag.tagSize
+                    # height = tag.tagSize
+                    # vertices = [[0, 0, 0], [0, width, 0], [0, width, height], [0, 0, height]]
+                    # triangles = [[0, 1, 2], [0, 2, 3]]
+                    # mesh = o3d.geometry.TriangleMesh()
+                    # mesh.vertices = o3d.utility.Vector3dVector(vertices)
+                    # mesh.triangles = o3d.utility.Vector3iVector(triangles)
+                    # mesh.textures = [tag_image]
+                    # mesh.triangle_uvs = o3d.utility.Vector2dVector(np.random.rand(1 * 3, 2))  # o3d.utility.Vector2dVector([[0, 0], [1, 0], [1, 1], [1, 1], [0, 1], [0, 0]])
+                    # mesh.compute_vertex_normals()
+
+                    tag_geometry = o3d.geometry.TriangleMesh.create_box(0.01, tag.tagSize, tag.tagSize)
+                    axis_geometry = o3d.geometry.TriangleMesh.create_coordinate_frame(tag.tagSize)
+
+                    tag_geometry.compute_vertex_normals()
+                    axis_geometry.compute_vertex_normals()
+                    
+                    tag_camera_pose_msg = tag.poseInCameraFrame
+                    camera_T_tag = self._capnp_se3_to_sophus_se3(tag_camera_pose_msg)
+                    tag_pose = origin_T_body * body_T_camera * camera_T_tag
+
+                    # mesh.transform(tag_pose.matrix())
+                    tag_geometry.transform(tag_pose.matrix())
+                    axis_geometry.transform(tag_pose.matrix())
+
+                    self.widget3d.scene.add_geometry(tag_name, tag_geometry, self.lit)
+                    self.widget3d.scene.add_geometry(tag_axis_name, axis_geometry, self.lit)
+                    self.tag_labels.append(self.widget3d.add_3d_label(tag_pose.translation(), tag_name))
+                    self.tag_geometries.append(tag_name)
+                    self.tag_geometries.append(tag_axis_name)
+
+    def _capnp_se3_to_sophus_se3(self, capnp_se3):
+        w = capnp_se3.orientation.w
+        x = capnp_se3.orientation.x
+        y = capnp_se3.orientation.y
+        z = capnp_se3.orientation.z
+
+        t = np.array([capnp_se3.position.x, 
+                      capnp_se3.position.y,
+                      capnp_se3.position.z], dtype=np.float64)
+        r = R.from_quat([x, y, z, w]).as_matrix()
+        return sp.SE3(r, t)
 
     def _on_layout_video(self, layout_context):
 
@@ -699,8 +774,11 @@ class VideoWindow:
         else:
             self.latencyHost_display_flag = False
     
-
-
+    def _on_switch_tagDebug(self, is_on):
+        if is_on:
+            self.tagDebug_display_flag = True
+        else:
+            self.tagDebug_display_flag = False
 
 
 def read_img(window):
@@ -714,6 +792,11 @@ def read_img(window):
     
     # SET PROCESS STATE
     ecal_core.set_process_state(1, 1, "I feel good")
+
+    tag_sub = { "cama": TagDetectionsSubscriber("S0/cama/tags"),
+                "camb": TagDetectionsSubscriber("S0/camb/tags"),
+                "camc": TagDetectionsSubscriber("S0/camc/tags"),
+                "camd": TagDetectionsSubscriber("S0/camd/tags"), }
 
     # set up vio subscriber
     if (flag_dict['vio_status']):
@@ -803,6 +886,10 @@ def read_img(window):
 
             dim = (512, 320) #width height
 
+            camName = imageName.split("/")[-1]
+            if window.tagDebug_display_flag and not tag_sub[camName].tags is None:
+                imageMsg = tag_sub[camName].tags.image
+
             if imageMsg.encoding == "mono8":
 
                 img_ndarray = np.frombuffer(imageMsg.data, dtype=np.uint8)
@@ -823,6 +910,13 @@ def read_img(window):
                 img_ndarray = img_ndarray.reshape((imageMsg.height * 3 // 2, imageMsg.width, 1))
 
                 img_ndarray = cv2.cvtColor(img_ndarray, cv2.COLOR_YUV2RGB_IYUV)
+                img_ndarray = cv2.resize(img_ndarray, dim, interpolation = cv2.INTER_NEAREST)
+            elif imageMsg.encoding == "bgr8":
+                img_ndarray = np.frombuffer(imageMsg.data, dtype=np.uint8)
+                img_ndarray = img_ndarray.reshape((imageMsg.height, imageMsg.width, 3))
+                
+                # bgr to rgb
+                img_ndarray = img_ndarray[:,:,::-1]
                 img_ndarray = cv2.resize(img_ndarray, dim, interpolation = cv2.INTER_NEAREST)
             else:
                 raise RuntimeError("unknown encoding: " + imageMsg.encoding)
@@ -848,6 +942,10 @@ def read_img(window):
                     update_proxy(window.proxy_4,all_display)
                 
         if not window.is_done:
+            window.destroy_tags()
+            for stream, sub in tag_sub.items():
+                window.add_tags(stream, sub.tags)
+
             if flag_dict['vio_status']:
                 update_proxy(window.proxy_vio, vio_sub.vio_msg)
 

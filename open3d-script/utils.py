@@ -10,6 +10,7 @@ capnp.add_import_hook(['../src/capnp'])
 import odometry3d_capnp as eCALOdometry3d
 import image_capnp as eCALImage
 import imu_capnp as eCALImu
+import tagdetection_capnp as eCALTagDetections
 
 import time
 
@@ -361,8 +362,20 @@ class VioSubscriber:
             
             self.vio_msg = position_msg + "\n" + orientation_msg + "\n" + device_latency_msg + "\n" + host_latency_msg
 
+class TagDetectionsSubscriber:
+    def __init__(self, tags_topic):
+        self.tags_sub = ByteSubscriber(tags_topic)
+        self.tags_sub.set_callback(self.callback)
+        self.topic = tags_topic
+        self.tags = None
 
-
+    def callback(self, topic_name, msg, ts):
+        with eCALTagDetections.TagDetections.from_bytes(msg) as tagDetectionsMsg:
+            self.tags = tagDetectionsMsg
+            print(f"received message with {len(tagDetectionsMsg.tags)} tags:")
+            for tag in tagDetectionsMsg.tags:
+                pose = tag.poseInCameraFrame.position
+                print(f"\ttag {tag.id} at {pose.x:.2f}, {pose.y:.2f}, {pose.z:.2f}")
 
 def image_resize(image, width = None, height = None, inter = cv2.INTER_AREA):
     # initialize the dimensions of the image to be resized and
