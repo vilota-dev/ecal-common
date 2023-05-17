@@ -368,10 +368,14 @@ class TagDetectionsSubscriber:
         self.tags_sub.set_callback(self.callback)
         self.topic = tags_topic
         self.tags = None
+        self.new_data = False
+        self.tag_geometries = set()
+        self.tag_labels = set()
 
     def callback(self, topic_name, msg, ts):
         with eCALTagDetections.TagDetections.from_bytes(msg) as tagDetectionsMsg:
             self.tags = tagDetectionsMsg
+            self.new_data = True
             print(f"received message with {len(tagDetectionsMsg.tags)} tags:")
             for tag in tagDetectionsMsg.tags:
                 pose = tag.poseInCameraFrame.position

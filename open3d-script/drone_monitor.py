@@ -13,7 +13,8 @@ import platform
 
 import ecal.core.core as ecal_core
 from byte_subscriber import ByteSubscriber
-
+import matplotlib.image as mpimg
+import copy
 
 capnp.add_import_hook(['../src/capnp'])
 
@@ -506,60 +507,96 @@ class VideoWindow:
         self.init_odom = 0
 
         # tags
+        cube_mesh_model = o3d.io.read_triangle_model("assets/april.obj")                    
+        self.cube_mesh = cube_mesh_model.meshes[1].mesh
+        self.cube_material = cube_mesh_model.materials[1]
+        bbox = self.cube_mesh.get_axis_aligned_bounding_box()
+        # only applies to this model
+        model_mesh_scale = bbox.get_max_bound()[1] - bbox.get_min_bound()[1]
+        
+        self.cube_mesh.scale(1 / model_mesh_scale, center=[0,0,0])
         self.lit = lit
-        self.tag_geometries = []
-        self.tag_labels = []
 
-    def destroy_tags(self):
-        for tag in self.tag_geometries:
-            self.widget3d.scene.remove_geometry(tag)
-        for label in self.tag_labels:
+
+    def destroy_tag_labels(self, sub):
+        for label in sub.tag_labels:
             self.widget3d.remove_3d_label(label)
-        self.tag_geometries = []
-        self.tag_labels = []
+        sub.tag_labels = set()
 
-    def add_tags(self, stream, tags):
+    def add_tags(self, stream, tags, sub):
+        t = np.array([0, 
+                      0,
+                      0], dtype=np.float64)
+        r = R.from_quat([0, 0, 0, 1]).as_matrix()
+        origin = sp.SE3(r, t)
         if (not tags is None):
             camera_frame_msg = tags.cameraExtrinsic.bodyFrame
             body_T_camera = self._capnp_se3_to_sophus_se3(camera_frame_msg)
             origin_T_body = sp.SE3(self.widget3d.scene.get_geometry_transform("drone"))
 
+            tag_names = set([f"tag_{tag.id} ({stream})" for tag in tags.tags])
+            old_not_new = sub.tag_geometries - tag_names
+            new_and_old = sub.tag_geometries & tag_names
+
             for tag in tags.tags:
                 tag_name = f"tag_{tag.id} ({stream})"
-                tag_axis_name = f"tag_axis_{tag.id} ({stream})"
-                if not self.widget3d.scene.has_geometry(tag_name):
-                    # im_raw = o3d.io.read_image("assets/apriltag.png")
-                    # tag_image = o3d.geometry.Image(im_raw)
-                    # width = tag.tagSize
-                    # height = tag.tagSize
-                    # vertices = [[0, 0, 0], [0, width, 0], [0, width, height], [0, 0, height]]
-                    # triangles = [[0, 1, 2], [0, 2, 3]]
-                    # mesh = o3d.geometry.TriangleMesh()
-                    # mesh.vertices = o3d.utility.Vector3dVector(vertices)
-                    # mesh.triangles = o3d.utility.Vector3iVector(triangles)
-                    # mesh.textures = [tag_image]
-                    # mesh.triangle_uvs = o3d.utility.Vector2dVector(np.random.rand(1 * 3, 2))  # o3d.utility.Vector2dVector([[0, 0], [1, 0], [1, 1], [1, 1], [0, 1], [0, 0]])
-                    # mesh.compute_vertex_normals()
+                tag_axis_name = f"tagaxis_{tag.id} ({stream})"
+                tag_camera_pose_msg = tag.poseInCameraFrame
+                camera_T_tag = self._capnp_se3_to_sophus_se3(tag_camera_pose_msg)
+                tag_pose = origin_T_body * body_T_camera * camera_T_tag
 
-                    tag_geometry = o3d.geometry.TriangleMesh.create_box(0.01, tag.tagSize, tag.tagSize)
+                # place axis at bottom right corner of tag to match debug image
+                axis_fix_t = np.array([0, -tag.tagSize / 2, -tag.tagSize / 2], dtype=np.float64)
+                axis_fix_r = R.from_quat([0, 0, 0, 1]).as_matrix()
+                axis_translate = sp.SE3(axis_fix_r, axis_fix_t)
+                axis_pose = tag_pose * axis_translate
+
+                if tag_name in new_and_old:
+                    self.widget3d.scene.set_geometry_transform(tag_name, tag_pose.matrix())
+                    self.widget3d.scene.set_geometry_transform(tag_axis_name, axis_pose.matrix())
+                    sub.tag_labels.add(self.widget3d.add_3d_label(tag_pose.translation(), tag_name))
+                elif tag_name in old_not_new:
+                    # can't happen
+                    pass
+                elif self.widget3d.scene.has_geometry(tag_name):
+                    self.widget3d.scene.show_geometry(tag_name, True)
+                    self.widget3d.scene.show_geometry(tag_axis_name, True)
+                    
+                    self.widget3d.scene.set_geometry_transform(tag_name, tag_pose.matrix())
+                    self.widget3d.scene.set_geometry_transform(tag_axis_name, axis_pose.matrix())
+                    sub.tag_labels.add(self.widget3d.add_3d_label(tag_pose.translation(), tag_name))
+                    
+                    sub.tag_geometries.add(tag_name)
+                    sub.tag_geometries.add(tag_axis_name)
+                else:
                     axis_geometry = o3d.geometry.TriangleMesh.create_coordinate_frame(tag.tagSize)
-
-                    tag_geometry.compute_vertex_normals()
                     axis_geometry.compute_vertex_normals()
                     
-                    tag_camera_pose_msg = tag.poseInCameraFrame
-                    camera_T_tag = self._capnp_se3_to_sophus_se3(tag_camera_pose_msg)
-                    tag_pose = origin_T_body * body_T_camera * camera_T_tag
+                    # cube_mesh.compute_vertex_normals()
+                    cube_mesh = copy.deepcopy(self.cube_mesh)
+                    cube_mesh.scale(tag.tagSize, center=[0,0,0])
 
-                    # mesh.transform(tag_pose.matrix())
-                    tag_geometry.transform(tag_pose.matrix())
-                    axis_geometry.transform(tag_pose.matrix())
-
-                    self.widget3d.scene.add_geometry(tag_name, tag_geometry, self.lit)
+                    # add to scene
+                    self.widget3d.scene.add_geometry(tag_name, cube_mesh, self.cube_material)
                     self.widget3d.scene.add_geometry(tag_axis_name, axis_geometry, self.lit)
-                    self.tag_labels.append(self.widget3d.add_3d_label(tag_pose.translation(), tag_name))
-                    self.tag_geometries.append(tag_name)
-                    self.tag_geometries.append(tag_axis_name)
+                    
+                    self.widget3d.scene.set_geometry_transform(tag_name, tag_pose.matrix())
+                    self.widget3d.scene.set_geometry_transform(tag_axis_name, axis_pose.matrix())
+                    sub.tag_labels.add(self.widget3d.add_3d_label(tag_pose.translation(), tag_name))
+                    
+                    sub.tag_geometries.add(tag_name)
+                    sub.tag_geometries.add(tag_axis_name)
+
+            # not ideal
+            for tag_name in old_not_new:
+                if "tag_" in tag_name:
+                    # make tag invisible
+                    tag_axis_name = f"tagaxis_{tag_name.split('_')[1]}"
+                    self.widget3d.scene.show_geometry(tag_name, False)
+                    self.widget3d.scene.show_geometry(tag_axis_name, False)
+                    # self.widget3d.remove_3d_label(sub.tag_labels[tag_name])
+                    sub.tag_geometries.remove(tag_name)
+                    sub.tag_geometries.remove(tag_axis_name)
 
     def _capnp_se3_to_sophus_se3(self, capnp_se3):
         w = capnp_se3.orientation.w
@@ -572,6 +609,9 @@ class VideoWindow:
                       capnp_se3.position.z], dtype=np.float64)
         r = R.from_quat([x, y, z, w]).as_matrix()
         return sp.SE3(r, t)
+    
+    def _set_tag_and_axis_position(self, tag, axis, pose):
+        pass
 
     def _on_layout_video(self, layout_context):
 
@@ -793,6 +833,7 @@ def read_img(window):
     # SET PROCESS STATE
     ecal_core.set_process_state(1, 1, "I feel good")
 
+    # set up tag detection subscribers
     tag_sub = { "cama": TagDetectionsSubscriber("S0/cama/tags"),
                 "camb": TagDetectionsSubscriber("S0/camb/tags"),
                 "camc": TagDetectionsSubscriber("S0/camc/tags"),
@@ -942,9 +983,11 @@ def read_img(window):
                     update_proxy(window.proxy_4,all_display)
                 
         if not window.is_done:
-            window.destroy_tags()
             for stream, sub in tag_sub.items():
-                window.add_tags(stream, sub.tags)
+                if sub.new_data:
+                    window.destroy_tag_labels(sub)
+                    window.add_tags(stream, sub.tags, sub)
+                    sub.new_data = False
 
             if flag_dict['vio_status']:
                 update_proxy(window.proxy_vio, vio_sub.vio_msg)
