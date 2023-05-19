@@ -261,7 +261,7 @@ class VideoWindow:
 
         self.land_current_degree = 0
         self.land_rotate_interval = 2
-        btn_land_clk = gui.Button(f"CLockwise {self.land_rotate_interval}\u00B0")
+        btn_land_clk = gui.Button(f"Clockwise {self.land_rotate_interval}\u00B0")
         btn_land_clk.set_on_clicked(self._btn_land_clk)
         odom_tab.add_child(btn_land_clk)        
         
@@ -331,19 +331,19 @@ class VideoWindow:
         label_camera_control.text_color = gui.Color(1.0, 0.5, 0.0)
         video_tab.add_child(label_camera_control)
         
-        self.cb_cama = gui.Checkbox("Steam cama")
+        self.cb_cama = gui.Checkbox("Stream cama")
         # self.cb_cama.checked = True
         video_tab.add_child(self.cb_cama)
 
-        self.cb_camb = gui.Checkbox("Steam camb")
+        self.cb_camb = gui.Checkbox("Stream camb")
         # self.cb_camb.checked = True
         video_tab.add_child(self.cb_camb)
 
-        self.cb_camc = gui.Checkbox("Steam camc")
+        self.cb_camc = gui.Checkbox("Stream camc")
         # self.cb_camc.checked = True
         video_tab.add_child(self.cb_camc)
 
-        self.cb_camd = gui.Checkbox("Steam camd")
+        self.cb_camd = gui.Checkbox("Stream camd")
         self.cb_camd.checked = True
         video_tab.add_child(self.cb_camd)
         
@@ -507,11 +507,11 @@ class VideoWindow:
         self.init_odom = 0
 
         # tags
-        cube_mesh_model = o3d.io.read_triangle_model("assets/april.obj")                    
+        cube_mesh_model = o3d.io.read_triangle_model("assets/april.obj")
+        # these                     
         self.cube_mesh = cube_mesh_model.meshes[1].mesh
         self.cube_material = cube_mesh_model.materials[1]
         bbox = self.cube_mesh.get_axis_aligned_bounding_box()
-        # only applies to this model
         model_mesh_scale = bbox.get_max_bound()[1] - bbox.get_min_bound()[1]
         
         self.cube_mesh.scale(1 / model_mesh_scale, center=[0,0,0])
@@ -523,16 +523,10 @@ class VideoWindow:
             self.widget3d.remove_3d_label(label)
         sub.tag_labels = set()
 
-    def add_tags(self, stream, tags, sub):
-        t = np.array([0, 
-                      0,
-                      0], dtype=np.float64)
-        r = R.from_quat([0, 0, 0, 1]).as_matrix()
-        origin = sp.SE3(r, t)
+    def add_tags(self, stream, tags, sub, use_vio, vio_sub):
         if (not tags is None):
             camera_frame_msg = tags.cameraExtrinsic.bodyFrame
             body_T_camera = self._capnp_se3_to_sophus_se3(camera_frame_msg)
-            origin_T_body = sp.SE3(self.widget3d.scene.get_geometry_transform("drone"))
 
             tag_names = set([f"tag_{tag.id} ({stream})" for tag in tags.tags])
             old_not_new = sub.tag_geometries - tag_names
@@ -542,8 +536,21 @@ class VideoWindow:
                 tag_name = f"tag_{tag.id} ({stream})"
                 tag_axis_name = f"tagaxis_{tag.id} ({stream})"
                 tag_camera_pose_msg = tag.poseInCameraFrame
+                
                 camera_T_tag = self._capnp_se3_to_sophus_se3(tag_camera_pose_msg)
-                tag_pose = origin_T_body * body_T_camera * camera_T_tag
+
+                if use_vio:
+                    vio_t = np.array([vio_sub.position_x,
+                                  vio_sub.position_y,
+                                  vio_sub.position_z], dtype=np.float64)
+                    vio_r = R.from_quat([vio_sub.orientation_x,
+                                     vio_sub.orientation_y,
+                                     vio_sub.orientation_z, 
+                                     vio_sub.orientation_w]).as_matrix()
+                    origin_T_body = sp.SE3(vio_r, vio_t)
+                    tag_pose = origin_T_body * body_T_camera * camera_T_tag
+                else:
+                    tag_pose = body_T_camera * camera_T_tag                
 
                 # place axis at bottom right corner of tag to match debug image
                 axis_fix_t = np.array([0, -tag.tagSize / 2, -tag.tagSize / 2], dtype=np.float64)
@@ -567,7 +574,6 @@ class VideoWindow:
                     sub.tag_labels.add(self.widget3d.add_3d_label(tag_pose.translation(), tag_name))
                     
                     sub.tag_geometries.add(tag_name)
-                    sub.tag_geometries.add(tag_axis_name)
                 else:
                     axis_geometry = o3d.geometry.TriangleMesh.create_coordinate_frame(tag.tagSize)
                     axis_geometry.compute_vertex_normals()
@@ -585,18 +591,13 @@ class VideoWindow:
                     sub.tag_labels.add(self.widget3d.add_3d_label(tag_pose.translation(), tag_name))
                     
                     sub.tag_geometries.add(tag_name)
-                    sub.tag_geometries.add(tag_axis_name)
 
-            # not ideal
             for tag_name in old_not_new:
-                if "tag_" in tag_name:
-                    # make tag invisible
-                    tag_axis_name = f"tagaxis_{tag_name.split('_')[1]}"
-                    self.widget3d.scene.show_geometry(tag_name, False)
-                    self.widget3d.scene.show_geometry(tag_axis_name, False)
-                    # self.widget3d.remove_3d_label(sub.tag_labels[tag_name])
-                    sub.tag_geometries.remove(tag_name)
-                    sub.tag_geometries.remove(tag_axis_name)
+                # make tag invisible
+                tag_axis_name = f"tagaxis_{tag_name.split('_')[1]}"
+                self.widget3d.scene.show_geometry(tag_name, False)
+                self.widget3d.scene.show_geometry(tag_axis_name, False)
+                sub.tag_geometries.remove(tag_name)
 
     def _capnp_se3_to_sophus_se3(self, capnp_se3):
         w = capnp_se3.orientation.w
@@ -986,7 +987,7 @@ def read_img(window):
             for stream, sub in tag_sub.items():
                 if sub.new_data:
                     window.destroy_tag_labels(sub)
-                    window.add_tags(stream, sub.tags, sub)
+                    window.add_tags(stream, sub.tags, sub, flag_dict['vio_status'], vio_sub)
                     sub.new_data = False
 
             if flag_dict['vio_status']:
