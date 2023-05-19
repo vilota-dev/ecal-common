@@ -38,4 +38,6 @@ struct Odometry3d {
     twist @6 :import "twist3.capnp".Twist3;
     twistCovariance @7 :List(Float32); # either 21 or 36 numbers of float
 
+    resetCounter @8 :UInt32;
+
 }

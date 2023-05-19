@@ -39,7 +39,7 @@ include_directories(
   set(CAPNPC_SRC_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/../..")
   capnp_generate_cpp(CAPNP_SRCS CAPNP_HDRS 
       ../../src/capnp/header.capnp
-      ../../src/capnp/vector3d.capnp
+      ../../src/capnp/vector3.capnp
       ../../src/capnp/imu.capnp
       ../../src/capnp/imulist.capnp
       ../../src/capnp/image.capnp
