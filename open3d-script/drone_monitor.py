@@ -540,13 +540,19 @@ class VideoWindow:
                 camera_T_tag = self._capnp_se3_to_sophus_se3(tag_camera_pose_msg)
 
                 if use_vio:
+                    quat = [vio_sub.orientation_x,
+                            vio_sub.orientation_y,
+                            vio_sub.orientation_z, 
+                            vio_sub.orientation_w]
+                    quat_norm = np.linalg.norm(quat)
+                else:
+                    quat_norm = 0
+
+                if quat_norm > 0:
                     vio_t = np.array([vio_sub.position_x,
                                   vio_sub.position_y,
                                   vio_sub.position_z], dtype=np.float64)
-                    vio_r = R.from_quat([vio_sub.orientation_x,
-                                     vio_sub.orientation_y,
-                                     vio_sub.orientation_z, 
-                                     vio_sub.orientation_w]).as_matrix()
+                    vio_r = R.from_quat(quat).as_matrix()
                     origin_T_body = sp.SE3(vio_r, vio_t)
                     tag_pose = origin_T_body * body_T_camera * camera_T_tag
                 else:
@@ -839,6 +845,7 @@ def read_img(window):
                 "camb": TagDetectionsSubscriber("S0/camb/tags"),
                 "camc": TagDetectionsSubscriber("S0/camc/tags"),
                 "camd": TagDetectionsSubscriber("S0/camd/tags"), }
+    vio_sub = None
 
     # set up vio subscriber
     if (flag_dict['vio_status']):
