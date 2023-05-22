@@ -945,7 +945,7 @@ def read_img(window):
 
             camName = imageName.split("/")[-1]
             if window.tagDebug_display_flag and not tag_sub[camName].tags is None:
-                imageMsg = tag_sub[camName].tags.image
+                imageMsg = tag_sub[camName].tags.image # hijack image stream
 
             if imageMsg.encoding == "mono8":
 
