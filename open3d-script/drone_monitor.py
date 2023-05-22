@@ -627,9 +627,6 @@ class VideoWindow:
         t = np.array([x, y, z], dtype=np.float64)
         r = R.from_quat([qx, qy, qz, qw]).as_matrix()
         return sp.SE3(r, t)
-    
-    def _set_tag_and_axis_position(self, tag, axis, pose):
-        pass
 
     def _on_layout_video(self, layout_context):
 
