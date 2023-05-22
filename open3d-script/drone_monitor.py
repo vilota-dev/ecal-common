@@ -561,7 +561,7 @@ class VideoWindow:
                 axis_translate = self.make_se3(0,
                                                -tag.tagSize / 2,
                                                -tag.tagSize / 2,
-                                               0, 0, 0, 1)
+                                               1, 0, 0, 0)
                 axis_pose = tag_pose * axis_translate
 
                 if tag_name in new_and_old:
