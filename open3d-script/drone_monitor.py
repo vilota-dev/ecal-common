@@ -13,7 +13,6 @@ import platform
 
 import ecal.core.core as ecal_core
 from byte_subscriber import ByteSubscriber
-import matplotlib.image as mpimg
 import copy
 
 capnp.add_import_hook(['../src/capnp'])
@@ -24,7 +23,6 @@ import cameracontrol_capnp as eCALCameraControl
 import open3d as o3d
 import open3d.visualization.gui as gui
 import open3d.visualization.rendering as rendering
-import matplotlib.image as mpimg
 
 from scipy.spatial.transform import Rotation as R
 import sophus as sp
@@ -507,14 +505,15 @@ class VideoWindow:
         self.init_odom = 0
 
         # tags
-        cube_mesh_model = o3d.io.read_triangle_model("assets/april.obj")
-        # these                     
+        # to replace with programmatic mesh generation
+        cube_mesh_model = o3d.io.read_triangle_model("assets/april.obj")                   
         self.cube_mesh = cube_mesh_model.meshes[1].mesh
         self.cube_material = cube_mesh_model.materials[1]
+
         bbox = self.cube_mesh.get_axis_aligned_bounding_box()
         model_mesh_scale = bbox.get_max_bound()[1] - bbox.get_min_bound()[1]
-        
         self.cube_mesh.scale(1 / model_mesh_scale, center=[0,0,0])
+        
         self.lit = lit
 
 
@@ -544,7 +543,7 @@ class VideoWindow:
                             vio_sub.orientation_y,
                             vio_sub.orientation_z, 
                             vio_sub.orientation_w]
-                    quat_norm = np.linalg.norm(quat)
+                    quat_norm = np.linalg.norm(quat) # will be 0 if no vio msg
                 else:
                     quat_norm = 0
 
@@ -559,19 +558,24 @@ class VideoWindow:
                     tag_pose = body_T_camera * camera_T_tag                
 
                 # place axis at bottom right corner of tag to match debug image
-                axis_fix_t = np.array([0, -tag.tagSize / 2, -tag.tagSize / 2], dtype=np.float64)
-                axis_fix_r = R.from_quat([0, 0, 0, 1]).as_matrix()
-                axis_translate = sp.SE3(axis_fix_r, axis_fix_t)
+                axis_translate = self.make_se3(0,
+                                               -tag.tagSize / 2,
+                                               -tag.tagSize / 2,
+                                               0, 0, 0, 1)
                 axis_pose = tag_pose * axis_translate
 
                 if tag_name in new_and_old:
+                    # tag already visible in scene
+                    # update pose
                     self.widget3d.scene.set_geometry_transform(tag_name, tag_pose.matrix())
                     self.widget3d.scene.set_geometry_transform(tag_axis_name, axis_pose.matrix())
                     sub.tag_labels.add(self.widget3d.add_3d_label(tag_pose.translation(), tag_name))
                 elif tag_name in old_not_new:
                     # can't happen
-                    pass
+                    continue
                 elif self.widget3d.scene.has_geometry(tag_name):
+                    # tag has been added, but not visible
+                    # let's make tag visible
                     self.widget3d.scene.show_geometry(tag_name, True)
                     self.widget3d.scene.show_geometry(tag_axis_name, True)
                     
@@ -581,12 +585,14 @@ class VideoWindow:
                     
                     sub.tag_geometries.add(tag_name)
                 else:
+                    # tag has not been added
+                    # let's add it
                     axis_geometry = o3d.geometry.TriangleMesh.create_coordinate_frame(tag.tagSize)
                     axis_geometry.compute_vertex_normals()
                     
-                    # cube_mesh.compute_vertex_normals()
                     cube_mesh = copy.deepcopy(self.cube_mesh)
                     cube_mesh.scale(tag.tagSize, center=[0,0,0])
+                    cube_mesh.compute_vertex_normals()
 
                     # add to scene
                     self.widget3d.scene.add_geometry(tag_name, cube_mesh, self.cube_material)
@@ -599,6 +605,7 @@ class VideoWindow:
                     sub.tag_geometries.add(tag_name)
 
             for tag_name in old_not_new:
+                # tags are no longer detected
                 # make tag invisible
                 tag_axis_name = f"tagaxis_{tag_name.split('_')[1]}"
                 self.widget3d.scene.show_geometry(tag_name, False)
@@ -611,10 +618,14 @@ class VideoWindow:
         y = capnp_se3.orientation.y
         z = capnp_se3.orientation.z
 
-        t = np.array([capnp_se3.position.x, 
-                      capnp_se3.position.y,
-                      capnp_se3.position.z], dtype=np.float64)
-        r = R.from_quat([x, y, z, w]).as_matrix()
+        return self.make_se3(capnp_se3.position.x,
+                             capnp_se3.position.y,
+                             capnp_se3.position.z,
+                             w, x, y, z)
+    
+    def make_se3(self, x, y, z, qw, qx, qy, qz):
+        t = np.array([x, y, z], dtype=np.float64)
+        r = R.from_quat([qx, qy, qz, qw]).as_matrix()
         return sp.SE3(r, t)
     
     def _set_tag_and_axis_position(self, tag, axis, pose):
@@ -1007,14 +1018,15 @@ def read_img(window):
                 x = vio_sub.orientation_x
                 y = vio_sub.orientation_y
                 z = vio_sub.orientation_z
-                w = vio_sub.orientation_w
+                w = vio_sub.orientation_w  
+                quat = [x, y, z, w]
 
-                drone_transform = np.array([     [1-2*y**2-2*z**2, 2*x*y - 2*w*z, 2*x*z + 2*w*y, vio_sub.position_x],
-                                                [2*x*y + 2*w*z, 1 - 2*x**2 - 2*z**2, 2*y*z - 2*w*x, vio_sub.position_y],
-                                                [2*x*z - 2*w*y, 2*y*z + 2*w*x, 1 - 2*x**2 - 2*y**2, vio_sub.position_z],
-                                                [0, 0, 0, 1]], 
-                                                dtype=np.float64)
-                window.widget3d.scene.set_geometry_transform("drone", drone_transform)
+                if np.linalg.norm(quat) > 0: # check valid quaternion
+                    t = np.array([vio_sub.position_x,
+                                  vio_sub.position_y,
+                                  vio_sub.position_z], dtype=np.float64)
+                    r = R.from_quat(quat).as_matrix()
+                    window.widget3d.scene.set_geometry_transform("drone", sp.SE3(r, t).matrix())
 
                 # store the imu to the csv file
                 if((time.monotonic() - file_last_time) > 1) and flag_dict['csv_status']:
