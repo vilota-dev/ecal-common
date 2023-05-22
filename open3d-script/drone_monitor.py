@@ -849,10 +849,10 @@ def read_img(window):
     ecal_core.set_process_state(1, 1, "I feel good")
 
     # set up tag detection subscribers
-    tag_sub = { "cama": TagDetectionsSubscriber("S0/cama/tags"),
-                "camb": TagDetectionsSubscriber("S0/camb/tags"),
-                "camc": TagDetectionsSubscriber("S0/camc/tags"),
-                "camd": TagDetectionsSubscriber("S0/camd/tags"), }
+    tag_sub = { "cama": TagDetectionsSubscriber("S0/tags/cama"),
+                "camb": TagDetectionsSubscriber("S0/tags/camb"),
+                "camc": TagDetectionsSubscriber("S0/tags/camc"),
+                "camd": TagDetectionsSubscriber("S0/tags/camd"), }
     vio_sub = None
 
     # set up vio subscriber
@@ -945,7 +945,8 @@ def read_img(window):
 
             camName = imageName.split("/")[-1]
             if window.tagDebug_display_flag and not tag_sub[camName].tags is None:
-                imageMsg = tag_sub[camName].tags.image # hijack image stream
+                # hijack image stream
+                imageMsg = tag_sub[camName].tags.image
 
             if imageMsg.encoding == "mono8":
 
