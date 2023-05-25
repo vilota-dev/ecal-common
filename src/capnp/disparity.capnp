@@ -17,18 +17,19 @@ struct Disparity {
     width @2 :UInt32;
     height @3 :UInt32;
     step @4 :UInt32;
-    data @5 :Data; # row major array of bytes with indicated encoding
+    decimationFactor @5 :UInt8;
+    data @6 :Data; # row major array of bytes with indicated encoding
 
-    fx @6 :Float32;
-    fy @7 :Float32;
-    cx @8 :Float32;
-    cy @9 :Float32;
-    baseline @10 :Float32;
+    fx @7 :Float32;
+    fy @8 :Float32;
+    cx @9 :Float32;
+    cy @10 :Float32;
+    baseline @11 :Float32;
 
-    streamName @11 :Text; # typically are "_rect" version to indicated rectified stream
+    streamName @12 :Text; # typically are "_rect" version to indicated rectified stream
 
-    pinholeRotation @12 :import "so3.capnp".So3;
+    pinholeRotation @13 :import "so3.capnp".So3;
 
-    maxDisparity @13 :UInt32;
+    maxDisparity @14 :UInt32;
 
 }
