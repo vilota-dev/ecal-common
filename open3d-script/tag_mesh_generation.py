@@ -2,6 +2,7 @@ import numpy as np
 import trimesh
 from PIL import Image
 from moms_apriltag import TagGenerator2
+import cv2
 
 def make_board_from_image(image: Image, board_length: int, board_width: int) -> trimesh.Trimesh:
       # sizing 
@@ -62,15 +63,20 @@ def make_board_from_image(image: Image, board_length: int, board_width: int) -> 
       board.apply_transform(tf)
       return board
 
+def get_tag_image(family, id):
+      tag_family = TagGenerator2(family)
+      tag = cv2.resize(tag_family.generate(id),
+                       dsize=(300, 300),
+                       interpolation=cv2.INTER_NEAREST)
+      tag = Image.fromarray(tag)
+      return tag
+
 if __name__ == "__main__":
       trimesh.util.attach_to_log()
 
-      tag_family = TagGenerator2("tag16h5")
-      auto_apriltag = Image.fromarray(tag_family.generate(1))
-      
+      auto_apriltag = get_tag_image("tag16h5", 2)
       raw_apriltag = Image.open('assets/apriltag.png')
-      
-      board = make_board_from_image(raw_apriltag, 0.15, 0.01)
 
+      board = make_board_from_image(auto_apriltag, 0.15, 0.5)
       board.show()
-      # board.export('assets/board.obj')
+      board.export('assets/board.obj')
