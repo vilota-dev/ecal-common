@@ -442,20 +442,18 @@ class VideoWindow:
         self.widget3d.scene.show_geometry("land_survey", False)
 
         # add floor
-        floor_width = 60
-        floor_height = 100
-        floor = o3d.geometry.TriangleMesh.create_box(width=floor_width, height=floor_height, depth=0.01)
+        self.floor_width = 10
+        self.floor_height = 10
+        floor = o3d.geometry.TriangleMesh.create_box(width=self.floor_width, height=self.floor_height, depth=0.01)
         floor.compute_vertex_normals()
-        floor.translate([self.land_survey.get_center()[0], self.land_survey.get_center()[1], self.land_survey.get_min_bound()[2]], relative=False)  
+        floor.translate([0, 0, self.land_survey.get_min_bound()[2]], relative=False)  
         floor.paint_uniform_color([0.5, 0.5, 0.5])
         self.widget3d.scene.add_geometry("floor", floor, lit)
 
-        floor_grid = create_grid_mesh(floor_width, floor_height, 5)
+        floor_grid = create_grid_mesh(self.floor_width, self.floor_height, 5)
         floor_grid.translate([floor.get_center()[0], floor.get_center()[1], floor.get_max_bound()[2]], relative=False)  
         floor_grid.paint_uniform_color([0.1, 0.1, 0.1])        
         self.widget3d.scene.add_geometry("floor_grid", floor_grid, line_mat)
-
-
 
 
         # add drone
@@ -1025,6 +1023,32 @@ def read_img(window):
                                   vio_sub.position_z], dtype=np.float64)
                     r = R.from_quat(quat).as_matrix()
                     window.widget3d.scene.set_geometry_transform("drone", sp.SE3(r, t).matrix())
+
+                print (vio_sub.position_x, vio_sub.position_y, window.floor_width, window.floor_height)
+                if (vio_sub.position_x > window.floor_width / 2 or vio_sub.position_y > window.floor_height / 2):
+                    line_mat = rendering.MaterialRecord()
+                    line_mat.shader = "unlitLine"
+                    line_mat.line_width = 2
+
+                    window.widget3d.scene.remove_geometry("floor_grid")
+                    window.widget3d.scene.remove_geometry("floor")
+
+                    width = 2 * max(vio_sub.position_x, window.floor_width)
+                    height = 2 * max(vio_sub.position_y, window.floor_height)
+
+                    window.floor_width = max(width, height)
+                    window.floor_height = max(width, height)
+
+                    floor = o3d.geometry.TriangleMesh.create_box(width=window.floor_width, height=window.floor_height, depth=0.01)
+                    floor.compute_vertex_normals()
+                    floor.translate([0, 0, window.land_survey.get_min_bound()[2]], relative=False)  
+                    floor.paint_uniform_color([0.5, 0.5, 0.5])
+                    window.widget3d.scene.add_geometry("floor", floor, window.lit)
+
+                    floor_grid = create_grid_mesh(window.floor_width, window.floor_height, 5)
+                    floor_grid.translate([floor.get_center()[0], floor.get_center()[1], floor.get_max_bound()[2]], relative=False)  
+                    floor_grid.paint_uniform_color([0.1, 0.1, 0.1])        
+                    window.widget3d.scene.add_geometry("floor_grid", floor_grid, line_mat)
 
                 # store the imu to the csv file
                 if((time.monotonic() - file_last_time) > 1) and flag_dict['csv_status']:
