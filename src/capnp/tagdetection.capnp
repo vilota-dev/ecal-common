@@ -27,29 +27,14 @@ struct TagDetection {
     pointsUndistortedPolygon @6 :FourPoints;
 
     poseInCameraFrame @7 :import "se3.capnp".Se3; # in RDF camera frame
-
 }
 
 struct TagDetections {
-    enum TagFamily {
-        Tag16h5 @1;
-        Tag25h9 @2;
-        Tag36h10 @3;
-        Tag36h11 @4;
-        Tag36h9 @5;
-        TagCircle21h7 @6;
-        TagCircle49h12 @7;
-        TagCustom48h12 @8;
-        TagStandard41h12 @9;
-        TagStandard52h13 @10;
-    }
     header @0 :import "header.capnp".Header; # aligned to image stamp, sequence has its own count
 
     cameraExtrinsic @1 :import "sensorextrinsic.capnp".SensorExtrinsic;
 
-    tagFamily @2 :TagFamily;
+    image @2 :import "image.capnp".Image; # image data may not be populated
 
-    image @3 :import "image.capnp".Image; # image data may not be populated
-
-    tags @4 :List(TagDetection);
+    tags @3 :List(TagDetection);
 }
