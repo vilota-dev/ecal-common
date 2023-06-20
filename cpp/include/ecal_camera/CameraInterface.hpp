@@ -1,7 +1,7 @@
 #pragma once
 
 #include <functional>
-#include <queue>
+#include <deque>
 #include <memory>
 #include <iostream>
 
@@ -19,7 +19,8 @@ template <typename T>
 class MessageSynchroniserExact {
 
   public:
-    void init(size_t N, std::vector<std::string> &names = {}, std::string prefix = {}) {
+    void init(size_t N, const std::vector<std::string> &names = {},
+              std::string prefix = {}, size_t queueSize = 10, bool realtime = true) {
         m_N = N;
         if (names.size()) {
             assert(names.size() == N);
@@ -28,37 +29,38 @@ class MessageSynchroniserExact {
 
         for (auto& name : m_names)
             name = prefix + name;
-            
+
         m_queueMap.resize(m_N);
         m_lastTsMap.resize(m_N);
         m_lastSeqMap.resize(m_N);
 
         m_lastSyncTs = 0;
+        m_queueSize = queueSize;
+
+        m_realtime = realtime;
     }
 
     void addMessage(size_t idx, std::uint64_t ts, std::uint64_t seq, T msg) {
         if (m_lastTsMap[idx] > 0) {
             if (m_lastTsMap[idx] > ts)
-            std::cout << "warn: ts regression detected, from " << m_lastTsMap[idx] << " to " << ts << std::endl;
+                std::cout << "warn: ts regression detected, from "
+                          << m_lastTsMap[idx] << " to " << ts
+                          << std::endl;
         }
-        // else{
-        //     std::cout << "first message received at synchroniser for " << m_names.size() ? m_names[idx] : idx << std::endl;
-        // }
 
         {
             std::lock_guard<std::mutex> lock(m_mutexQueue);
-            m_queueMap[idx].push(std::make_pair(ts, msg));
-            
-            constexpr size_t MAX_BUFFER_SIZE = 50;
-            if (m_queueMap[idx].size() > MAX_BUFFER_SIZE) {
+            m_queueMap[idx].push_back(std::make_pair(ts, msg));
+
+            if (m_queueMap[idx].size() > m_queueSize) {
 
                 std::string name;
                 if (m_names.size())
                     name = m_names[idx];
 
                 // it is ok to have failed the queue before first sync get done
-                if (m_queueMap[idx].size() % MAX_BUFFER_SIZE == 1) {
-                    
+                if (m_queueMap[idx].size() % m_queueSize == 1) {
+
                     if ( m_lastSyncTs > 0 ) {
                         std::cout << name << ": too much message in the queue, sync msg is broken?" << std::endl;
                     }else{
@@ -72,26 +74,79 @@ class MessageSynchroniserExact {
                     }
                 }
 
-
-                
-                    
+                m_queueMap[idx].pop_front();
             }
-            
         }
 
         m_lastTsMap[idx] = ts;
         m_lastSeqMap[idx] = seq;
+
+        {
+            std::lock_guard<std::mutex> lock(m_mutexQueue);
+
+            if (m_realtime) {
+                auto ret = tryGet(true);
+                std::vector<T> prevRet;
+                while (ret.size()) {
+                    prevRet = ret;
+                    ret = tryGet(true);
+                }
+                // insert ret to front of queue
+                if (prevRet.size()) {
+                    for (size_t i = 0; i < m_N; i++) {
+                        m_queueMap[i].push_front(std::make_pair(m_lastSyncTs, prevRet[i]));
+                    }
+                }
+            } else {
+                cleanupQueues();
+            }
+        }
     }
 
-    std::vector<T> tryGet() {
-
-        std::lock_guard<std::mutex> lock(m_mutexQueue);
+    std::vector<T> tryGet(bool queueLocked = false) {
+        auto lock = !queueLocked
+            ? std::unique_lock<std::mutex>(m_mutexQueue)
+            : std::unique_lock<std::mutex>();
 
         std::vector<T> ret;
-
         for (auto& queue : m_queueMap) {
             if (!queue.size())
                 return ret; // some queues are empty
+        }
+        uint64_t syncTs = cleanupQueues();
+
+        if (syncTs) {
+            // sanity check
+            if (m_lastSyncTs > syncTs) {
+                std::cout << "error: synced message ts regression from " << m_lastSyncTs
+                          << " to " << syncTs << ", skipping" << std::endl;
+                ret.clear();
+                return ret; // empty return
+            }
+
+            // sync found, returning and popping
+            ret.resize(m_N);
+            for (size_t i = 0; i < m_N; i++) {
+                auto val = m_queueMap[i].front().second;
+                ret[i] = val;
+                m_queueMap[i].pop_front();
+            }
+
+            m_lastSyncTs = syncTs; // equals to maxTs
+            return ret;
+        }
+
+        return ret; // empty return
+    }
+
+  private:
+
+    // returns 0 if sync not found
+    // ensure m_mutexQueue is locked
+    uint64_t cleanupQueues() {
+        for (auto& queue : m_queueMap) {
+            if (!queue.size())
+                return 0; // some queues are empty
         }
 
         std::uint64_t minTs, maxTs;
@@ -111,7 +166,7 @@ class MessageSynchroniserExact {
             for (size_t i = 0; i < m_N; i++) {
                 auto ts = m_queueMap[i].front().first;
                 if (ts < maxTs) {
-                    m_queueMap[i].pop();
+                    m_queueMap[i].pop_front();
 
                     // if the queue is not empty, try again
                     if (m_queueMap[i].size())
@@ -119,38 +174,22 @@ class MessageSynchroniserExact {
                     continue;
                 }
             }
-            return ret;
-
-        }else{
-            // sync found, returning and popping
-            ret.resize(m_N);
-            for (size_t i = 0; i < m_N; i++) {
-                ret[i] = m_queueMap[i].front().second;
-                m_queueMap[i].pop();
-            }
-
-            // sanity check
-            if (m_lastSyncTs >= minTs) {
-                std::cout << "error: synced message ts regression from " << m_lastSyncTs << " to " << minTs << ", skipping" << std::endl;
-                ret.clear();
-                return ret; // empty return
-            }
-
-            m_lastSyncTs = minTs; // equals to maxTs
-            return ret;
+            return 0;
         }
-    }
 
-  private:
+        return minTs;
+    }
 
     size_t m_N;
     std::vector<std::string> m_names;
-    std::vector<std::queue<std::pair<std::uint64_t,T>>> m_queueMap;
+    std::vector<std::deque<std::pair<std::uint64_t,T>>> m_queueMap;
     std::mutex m_mutexQueue;
     std::vector<std::uint64_t> m_lastTsMap;
     std::vector<std::uint64_t> m_lastSeqMap;
     std::uint64_t m_lastSyncTs;
 
+    size_t m_queueSize;
+    bool m_realtime;
 };
 
 struct CameraParams {
