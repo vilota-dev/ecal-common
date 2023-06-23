@@ -7,8 +7,6 @@ from capnp_subscriber import CapnpSubscriber
 
 capnp.add_import_hook(['../src/capnp'])
 
-import image_capnp as eCALImage
-import disparity_capnp as eCALDisparity
 import imu_capnp as eCALImu
 
 import queue
@@ -76,16 +74,22 @@ class ImuSubscriber:
 
 
 class SyncedImageSubscriber:
-    def __init__(self, types, topics):
+    def __init__(self, types, topics, 
+                 typeclasses=None, 
+                 enforce_sync=True):
 
         self.subscribers = {}
-        self.queues = {} # store individual incoming images
-        self.synced_queue = queue.Queue(150) # store properly synced images
+        # store individual incoming images
+        self.queues = {}
+        # store properly synced images
+        self.synced_queue = queue.Queue(150)
+        self.enforce_sync = enforce_sync
+        self.callbacks = []
+        
         self.latest = None
         assert len(types) == len(topics)
+        assert typeclasses is None or len(typeclasses) == len(topics)
         self.size = len(topics)
-
-        # self.warn_drop = False
 
         self.rolling = False
 
@@ -96,41 +100,29 @@ class SyncedImageSubscriber:
 
         for i in range(len(topics)):
             print(f"subscribing to {types[i]} topic {topics[i]}")
-            sub = self.subscribers[topics[i]] = CapnpSubscriber(types[i], topics[i])
+            typeclass = typeclasses[i] if typeclasses is not None else None
+            sub = self.subscribers[topics[i]] = CapnpSubscriber(types[i], topics[i], typeclass)
             sub.set_callback(self.callback)
 
             self.queues[topics[i]] = queue.Queue(10)
 
-    # def queue_clear(self):
-    #     with self.lock:
-
-    #         for queueName in self.queues:
-
-    #             queue = self.queues[queueName]
-    #             queue = queue.Queue(30)
-
     def queue_update(self):
-
-        # with self.lock:
-
         for queueName in self.queues:
-
             m_queue = self.queues[queueName]
 
             # already in assemble, no need to get from queue
             if queueName in self.assemble:
                 continue
 
-            while True:
+            while True:                  
 
                 if m_queue.empty():
                     break
 
                 imageMsg = m_queue.get()
 
-                if self.assemble_index < imageMsg.header.stamp:
+                if self.enforce_sync and self.assemble_index < imageMsg.header.stamp:
                     # we shall throw away the assemble and start again
-                    
                     if self.assemble_index != -1:
                         print(f"reset index to {imageMsg.header.stamp}")
 
@@ -139,69 +131,51 @@ class SyncedImageSubscriber:
                     self.assemble[queueName] = imageMsg
                     
                     continue
-                elif self.assemble_index > imageMsg.header.stamp:
-                    print(f"ignore {queueName} for later")
+                elif self.enforce_sync and self.assemble_index > imageMsg.header.stamp:
+                    # print(f"ignore {queueName} for later")
                     continue
                 else:
                     self.assemble[queueName] = imageMsg
-                    break
-
+                    if self.enforce_sync:
+                        break        
         
         # check for full assembly
-
         if len(self.assemble) == self.size:
-            
             self.latest = self.assemble
 
+            for cb in self.callbacks:
+                cb(self.latest, self.assemble_index)
+
             if self.rolling:
-                try:
-                    self.synced_queue.put(self.assemble, block=False)
-                except queue.Full:
-                    print("image queue full")
+                if self.synced_queue.full():
+                    print(f"queue full: {self.queues.keys()}")
                     self.synced_queue.get()
                     self.synced_queue.put(self.assemble)
-            
-
+                else:
+                    self.synced_queue.put(self.assemble, block=False)
             self.assemble = {}
-
-            # print(f"success assembling {self.assemble_index / 1.e9}")
-
             self.assemble_index = -1
 
-            # if self.synced_queue.full():
-            #     if self.warn_drop is True:
-            #         print("image sync_queue is not processed in time")
-            #     self.synced_queue.get()
-
-                
-
-                
-
-
     def callback(self, topic_type, topic_name, msg, ts):
-            # need to remove the .decode() function within the Python API of ecal.core.subscriber StringSubscriber
-
-        if topic_type == "capnp:Image":
-            with eCALImage.Image.from_bytes(msg) as imageMsg:
-
-                self.queues[topic_name].put(imageMsg)
-
-                with self.lock:
-                    self.queue_update()
-        elif topic_type == "capnp:Disparity":
-            with eCALDisparity.Disparity.from_bytes(msg) as disparityMsg:
-
-                self.queues[topic_name].put(disparityMsg)
-
-                with self.lock:
-                    self.queue_update()
-        else:
-            raise RuntimeError(f"unknown type received: {topic_type}")
-
-    def pop_latest(self):
+        if self.queues[topic_name].full():
+            self.queues[topic_name].get()
+        
+        self.queues[topic_name].put(msg)
 
         with self.lock:
+            self.queue_update()
 
+    # sub must have a `register_callback()` method
+    def add_external_sub(self, sub, topic_name):
+        self.queues[topic_name] = queue.Queue(10)
+        self.size += 1
+        sub.register_callback(self.callback)
+
+    def register_callback(self, cb):
+        self.callbacks.append(cb)
+
+    def pop_latest(self):
+        with self.lock:
             if self.latest == None:
                 return {}
             else:
@@ -209,15 +183,7 @@ class SyncedImageSubscriber:
 
     def pop_sync_queue(self):
         # not protected for read
-
         return self.synced_queue.get()
-
-        # try:
-        #     return self.synced_queue.get(False)
-        # except queue.Empty:
-        #     return None
-
-
 
 def image_resize(image, width = None, height = None, inter = cv2.INTER_AREA):
     # initialize the dimensions of the image to be resized and

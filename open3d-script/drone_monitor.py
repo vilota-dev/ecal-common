@@ -17,6 +17,9 @@ import copy
 
 capnp.add_import_hook(['../src/capnp'])
 
+import sys
+sys.path.insert(0, "../python")
+
 import odometry3d_capnp as eCALOdometry3d
 import image_capnp as eCALImage
 import cameracontrol_capnp as eCALCameraControl
@@ -29,32 +32,34 @@ import sophus as sp
 
 from PIL import Image
 
-from utils import TagDetectionsSubscriber, SyncedImageSubscriber, AsyncedImageSubscriber, VioSubscriber, add_ui_on_ndarray, is_numeric
+from subscriber_utils import TagDetectionsSubscriber, VioSubscriber, add_ui_on_ndarray, is_numeric
+from utils import SyncedImageSubscriber
+
 from o3d_utils import create_grid_mesh
 
 isMacOS = (platform.system() == "Darwin")
 
 image_topics = []
+image_types = []
+image_typeclasses = []
 flag_dict = {}
 flag_dict['vio_status'] = False
 flag_dict['synced_status'] = False
 flag_dict['thumbnail_status'] = False
 flag_dict['csv_status'] = False
 
+JUMP_THRESHOLD = 2 * 1e9
 
 class ChooseWindow:
 
     def __init__(self):
-        
         self.is_done = False
-        
 
         # CONFIGURE WINDOW
         self.window = gui.Application.instance.create_window(
             "Camera confirm", 500, 350)
         self.window.set_on_layout(self._on_layout)
         self.window.set_on_close(self._on_close) 
-        
         
         # CONFIGURE GUI
         em = self.window.theme.font_size
@@ -110,9 +115,6 @@ class ChooseWindow:
         self.button_layout.add_child(self.ok_button)
         
         self.window.add_child(self.button_layout) 
-        
-
-
 
     def _on_layout(self, layout_context):
         contentRect = self.window.content_rect
@@ -126,31 +128,43 @@ class ChooseWindow:
                                 contentRect.width,
                                 50)
 
-
     def _on_close(self):
         self.is_done = True
         return True  # False would cancel the close
 
     def _on_ok(self):
+        global image_types, image_typeclasses
+        num_subs = 0
         if self.cb_thumbnail.checked:
             flag_dict['thumbnail_status'] = True
             if self.cb_cama.checked:
                 image_topics.append("S0/thumbnail/cama")
+                num_subs += 1
             if self.cb_camb.checked:
                 image_topics.append("S0/thumbnail/camb") 
+                num_subs += 1
             if self.cb_camc.checked:
                 image_topics.append("S0/thumbnail/camc")
+                num_subs += 1
             if self.cb_camd.checked:
                 image_topics.append("S0/thumbnail/camd")
+                num_subs += 1
         else:
             if self.cb_cama.checked:
                 image_topics.append("S0/cama")
+                num_subs += 1
             if self.cb_camb.checked:
                 image_topics.append("S0/camb") 
+                num_subs += 1
             if self.cb_camc.checked:
                 image_topics.append("S0/camc")
+                num_subs += 1
             if self.cb_camd.checked:
                 image_topics.append("S0/camd")
+                num_subs += 1
+
+        image_types = ["Image" for i in range(num_subs)]
+        image_typeclasses = [eCALImage.Image for i in range(num_subs)]
         
         if self.cb_vio.checked:
             flag_dict['vio_status'] = True
@@ -166,14 +180,11 @@ class ChooseWindow:
         gui.Application.instance.quit()
 
 
-
-
 class VideoWindow:
     MENU_QUIT = 1
    
 
     def __init__(self):
-                
         self.is_done = False
 
         self.expTime_display_flag = False
@@ -321,6 +332,8 @@ class VideoWindow:
 
         tabs.add_tab("Odometry", odom_tab)
         self.collapse.add_child(tabs)
+
+        self.last_odom_ts = 0
         
         # video tab
         video_tab = gui.Vert(0.5 * em, gui.Margins(8,8,8,8))
@@ -417,7 +430,6 @@ class VideoWindow:
         self.collapse.add_child(self.proxy_tag)
 
         # odom widget
-        
         self.widget3d = gui.SceneWidget()
         self.widget3d.scene = rendering.Open3DScene(self.window.renderer)
         self.widget3d.scene.set_lighting(o3d.visualization.rendering.Open3DScene.LightingProfile.NO_SHADOWS , np.array([0, 0, 1]).astype(np.float32))        
@@ -455,7 +467,6 @@ class VideoWindow:
         floor_grid.paint_uniform_color([0.1, 0.1, 0.1])        
         self.widget3d.scene.add_geometry("floor_grid", floor_grid, line_mat)
 
-
         # add drone
         self.drone = o3d.geometry.TriangleMesh.create_coordinate_frame()
         self.drone.compute_vertex_normals()
@@ -470,10 +481,6 @@ class VideoWindow:
         self.drone_bound = self.drone. get_axis_aligned_bounding_box()
         
         self.set_start_view()
-
-
-
-
 
         # main panel
         self.panel_main = gui.Vert(0.5 * em, gui.Margins(margin))
@@ -520,7 +527,7 @@ class VideoWindow:
             self.widget3d.remove_3d_label(label)
         sub.tag_labels = set()
 
-    def add_tags(self, stream, tags, sub, use_vio, vio_sub):
+    def add_tags(self, stream, tags, sub):
         if (not tags is None):
             camera_frame_msg = tags.cameraExtrinsic.bodyFrame
             body_T_camera = self._capnp_se3_to_sophus_se3(camera_frame_msg)
@@ -536,19 +543,19 @@ class VideoWindow:
                 
                 camera_T_tag = self._capnp_se3_to_sophus_se3(tag_camera_pose_msg)
 
-                if use_vio:
-                    quat = [vio_sub.orientation_x,
-                            vio_sub.orientation_y,
-                            vio_sub.orientation_z, 
-                            vio_sub.orientation_w]
+                if sub.uses_vio and sub.vio is not None:
+                    quat = [sub.vio.pose.orientation.x,
+                            sub.vio.pose.orientation.y,
+                            sub.vio.pose.orientation.z, 
+                            sub.vio.pose.orientation.w]
                     quat_norm = np.linalg.norm(quat) # will be 0 if no vio msg
                 else:
                     quat_norm = 0
 
                 if quat_norm > 0:
-                    vio_t = np.array([vio_sub.position_x,
-                                  vio_sub.position_y,
-                                  vio_sub.position_z], dtype=np.float64)
+                    vio_t = np.array([sub.vio.pose.position.x,
+                                  sub.vio.pose.position.y,
+                                  sub.vio.pose.position.z], dtype=np.float64)
                     vio_r = R.from_quat(quat).as_matrix()
                     origin_T_body = sp.SE3(vio_r, vio_t)
                     tag_pose = origin_T_body * body_T_camera * camera_T_tag
@@ -847,6 +854,8 @@ def read_img(window):
     ecal_core.set_process_state(1, 1, "I feel good")
 
     # set up tag detection subscribers
+
+    vio_topic = "S0/vio_odom" if flag_dict['vio_status'] else None
     tag_sub = { "cama": TagDetectionsSubscriber("S0/tags/cama"),
                 "camb": TagDetectionsSubscriber("S0/tags/camb"),
                 "camc": TagDetectionsSubscriber("S0/tags/camc"),
@@ -856,22 +865,27 @@ def read_img(window):
     # set up vio subscriber
     if (flag_dict['vio_status']):
         vio_sub = VioSubscriber("S0/vio_odom")
+        tag_sub["cama"].add_vio_sub(vio_sub, "S0/vio_odom")
+        tag_sub["camb"].add_vio_sub(vio_sub, "S0/vio_odom")
+        tag_sub["camc"].add_vio_sub(vio_sub, "S0/vio_odom")
+        tag_sub["camd"].add_vio_sub(vio_sub, "S0/vio_odom")
     else:
         window.proxy_vio.set_widget(gui.Label("vio is not on"))
     
     # set up image subscriber
     if (flag_dict['synced_status']):
         window.synced_label.text = "Synced images"
-        synced_recorder = SyncedImageSubscriber(image_topics)
+        synced_recorder = SyncedImageSubscriber(image_types, 
+                                                image_topics, 
+                                                image_typeclasses)
         synced_recorder.rolling = True
     else:
         window.synced_label.text = "Asynced images"
-        asynced_recorder = AsyncedImageSubscriber(image_topics)
+        asynced_recorder = SyncedImageSubscriber(image_types, 
+                                                 image_topics, 
+                                                 image_typeclasses, 
+                                                 False)
         asynced_recorder.rolling = True
-
-
- 
-
 
     def update_frame(imageName,img_ndarray):
         if(('cama' in imageName) and window.cb_cama.checked):
@@ -920,12 +934,11 @@ def read_img(window):
             csvfile.truncate()
 
     while ecal_core.ok():
-
         # synced mode
         if (flag_dict['synced_status']):
             ecal_images = synced_recorder.pop_sync_queue()
         else:
-            ecal_images = asynced_recorder.pop_async_queue()
+            ecal_images = asynced_recorder.pop_sync_queue()
 
         for imageName in ecal_images:
 
@@ -947,16 +960,8 @@ def read_img(window):
                 imageMsg = tag_sub[camName].tags.image
 
             if imageMsg.encoding == "mono8":
-
                 img_ndarray = np.frombuffer(imageMsg.data, dtype=np.uint8)
-                img_ndarray = img_ndarray.reshape((imageMsg.height, imageMsg.width, 1))
-
-                # resize to smaller resolution
-                # scale_percent = 40 # percent of original size
-                # width = int(img_ndarray.shape[1] * scale_percent / 100)
-                # height = int(img_ndarray.shape[0] * scale_percent / 100)
-                
-                
+                img_ndarray = img_ndarray.reshape((imageMsg.height, imageMsg.width, 1))             
                 img_ndarray = cv2.resize(img_ndarray, dim, interpolation = cv2.INTER_NEAREST)
 
                 #convert numpy array to 3 channel
@@ -1001,7 +1006,7 @@ def read_img(window):
             for stream, sub in tag_sub.items():
                 if sub.new_data:
                     window.destroy_tag_labels(sub)
-                    window.add_tags(stream, sub.tags, sub, flag_dict['vio_status'], vio_sub)
+                    window.add_tags(stream, sub.tags, sub)
                     sub.new_data = False
 
             if flag_dict['vio_status']:
@@ -1074,12 +1079,19 @@ def read_img(window):
                 dtype = np.float64)
                 edge = np.array([[0, 1],], dtype = np.int32)
 
+                odom_jump_detected = abs(vio_sub.ts - window.last_odom_ts) > JUMP_THRESHOLD
+                window.last_odom_ts = vio_sub.ts
+
                 # draw the sub line
                 if not np.array_equal(vertices[0], vertices[1]):
                     line_path = o3d.geometry.LineSet()
                     line_path.points = o3d.utility.Vector3dVector(vertices)
                     line_path.lines = o3d.utility.Vector2iVector(edge)
-                    line_path.colors = o3d.utility.Vector3dVector([(1, 0, 0)])
+                    if odom_jump_detected:
+                        line_path.colors = o3d.utility.Vector3dVector([(0, 0, 1)])
+                    else:
+                        line_path.colors = o3d.utility.Vector3dVector([(1, 0, 0)])
+                    
                     if not window.cleaning_now:
                         line_name = "line_" + str(line_index)
                         window.path_line_list.append(line_name)
@@ -1095,11 +1107,8 @@ def read_img(window):
                 target = np.array([current_x_coor, current_y_coor, current_z_coor], dtype=np.float32)
                 up = np.array([1, 0, 0], dtype=np.float32)
                 window.widget3d.look_at(target, camera_pos, up)
-            
-
 
         window.window.post_redraw()
-
 
     # finalize eCAL API
     ecal_core.finalize()

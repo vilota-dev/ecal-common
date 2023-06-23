@@ -11,11 +11,9 @@ import numpy as np
 import cv2
 
 import ecal.core.core as ecal_core
-# from byte_subscriber import ByteSubscriber
 
-# capnp.add_import_hook(['../src/capnp'])
-
-# import image_capnp as eCALImage
+capnp.add_import_hook(['../src/capnp'])
+import image_capnp as eCALImage
 
 from utils import SyncedImageSubscriber, ImuSubscriber, image_resize
 
@@ -34,9 +32,9 @@ class DatasetMode(Enum):
 
 class RosbagDatasetRecorder:
 
-    def __init__(self, image_types, image_topics, imu_topic, bag_name, mode):
+    def __init__(self, image_types, image_topics, image_typeclasses, imu_topic, bag_name, mode):
 
-        self.image_sub = SyncedImageSubscriber(image_types, image_topics)
+        self.image_sub = SyncedImageSubscriber(image_types, image_topics, image_typeclasses)
 
         if mode == DatasetMode.CONTINUOUS:
             self.imu_sub = ImuSubscriber(imu_topic)
@@ -189,9 +187,10 @@ def main(mode):
     # set process state
     ecal_core.set_process_state(1, 1, "I feel good")
 
-    image_topics = ["S0/cama", "S0/camb"]
-    image_types = ["Image", "Image"]
-    imu_topic = "S0/imu"
+    image_topics = ["S0/camb", "S0/camc", "S0/camd"]
+    image_types = ["Image", "Image", "Image"]
+    image_typeclasses = [eCALImage.Image, eCALImage.Image, eCALImage.Image]
+    imu_topic = "S1/imu"
 
     if mode == DatasetMode.SNAPSHOTS:
         mode_type = "snapshot"
@@ -200,7 +199,7 @@ def main(mode):
     
     bag_name = "./rosbag/" + datetime.now().strftime("%Y-%m-%d-%I-%M-%S-") + mode_type + "_recording.bag"
 
-    recorder = RosbagDatasetRecorder(image_types, image_topics, imu_topic, bag_name , mode)
+    recorder = RosbagDatasetRecorder(image_types, image_topics, image_typeclasses, imu_topic, bag_name , mode)
 
     def handler(signum, frame):
         print("ctrl-c is pressed")
@@ -232,7 +231,7 @@ def main(mode):
                 imageMsg = image_dict[imageName]
                 mat = np.frombuffer(imageMsg.data, dtype=np.uint8)
                 mat = mat.reshape((imageMsg.height, imageMsg.width, 1))
-                mat_resized = image_resize(mat, width=120)
+                mat_resized = image_resize(mat, width=720)
 
                 image_list.append(mat_resized)
 
