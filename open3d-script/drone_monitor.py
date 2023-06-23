@@ -1029,7 +1029,6 @@ def read_img(window):
                     r = R.from_quat(quat).as_matrix()
                     window.widget3d.scene.set_geometry_transform("drone", sp.SE3(r, t).matrix())
 
-                print (vio_sub.position_x, vio_sub.position_y, window.floor_width, window.floor_height)
                 if (vio_sub.position_x > window.floor_width / 2 or vio_sub.position_y > window.floor_height / 2):
                     line_mat = rendering.MaterialRecord()
                     line_mat.shader = "unlitLine"
