@@ -19,7 +19,7 @@ template <typename T>
 class MessageSynchroniserExact {
 
   public:
-    void init(size_t N, std::vector<std::string> &names = {}, std::string prefix = {}) {
+    void init(size_t N, const std::vector<std::string> &names = {}, std::string prefix = {}) {
         m_N = N;
         if (names.size()) {
             assert(names.size() == N);

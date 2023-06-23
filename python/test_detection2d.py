@@ -8,7 +8,7 @@ import numpy as np
 import cv2
 
 import ecal.core.core as ecal_core
-from byte_subscriber import ByteSubscriber
+from capnp_subscriber import CapnpSubscriber
 
 capnp.add_import_hook(['../src/capnp'])
 
@@ -38,7 +38,7 @@ def displayFrame(frame, detections, labels, half_size = False):
 
     return frame
 
-def callback(topic_name, msg, ts):
+def callback(type, topic_name, msg, ts):
 
     with eCALDetection2d.Detections2d.from_bytes(msg) as d:
         print(f"seq = {d.header.seq}, with {len(msg)} bytes")
@@ -87,7 +87,7 @@ def main():
 
     n = len(sys.argv)
     if n == 1:
-        topic = "S0/yolo/camb"
+        topic = "S0/yolo/camc"
     elif n == 2:
         topic = sys.argv[1]
     else:
@@ -96,7 +96,8 @@ def main():
     print(f"Streaming topic {topic}")
 
     # create subscriber and connect callback
-    sub = ByteSubscriber(topic)
+    sub = CapnpSubscriber("Yolo", topic)
+    # sub = ByteSubscriber(topic)
     # sub = ByteSubscriber("raw_fisheye_image")
     # sub = ByteSubscriber("S0/stereo1_l")
     sub.set_callback(callback)
