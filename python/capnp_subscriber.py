@@ -3,10 +3,11 @@ from ecal.core.subscriber import MessageSubscriber
 class CapnpSubscriber(MessageSubscriber):
   """Specialized publisher subscribes to raw bytes
   """
-  def __init__(self, type, name):
+  def __init__(self, type, name, typeclass=None):
     self.topic_type = "capnp:" + type
     super(CapnpSubscriber, self).__init__(name, self.topic_type)
     self.callback = None
+    self.typeclass = typeclass
 
   def receive(self, timeout=0):
     """ receive subscriber content with timeout
@@ -36,4 +37,8 @@ class CapnpSubscriber(MessageSubscriber):
     self.callback = None
 
   def _on_receive(self, topic_name, msg, time):
-    self.callback(self.topic_type, topic_name, msg, time)    
+    if self.typeclass is None:
+      self.callback(self.topic_type, topic_name, msg, time)
+    else:
+      with self.typeclass.from_bytes(msg) as msg:
+        self.callback(self.topic_type, topic_name, msg, time)
