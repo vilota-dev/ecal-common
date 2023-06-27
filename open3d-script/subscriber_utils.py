@@ -99,6 +99,7 @@ class VioSubscriber:
         self.orientation_z = 0.0
         self.orientation_w = 0.0
 
+        self.header = None
         self.ts = 0.0
 
     def register_callback(self, cb):
@@ -124,6 +125,7 @@ class VioSubscriber:
 
             self.ts = odometryMsg.header.stamp
             # text
+            self.header = odometryMsg.header
             position_msg = f"position: \n {odometryMsg.pose.position.x:.4f}, {odometryMsg.pose.position.y:.4f}, {odometryMsg.pose.position.z:.4f}"
             orientation_msg = f"orientation: \n  {odometryMsg.pose.orientation.w:.4f}, {odometryMsg.pose.orientation.x:.4f}, {odometryMsg.pose.orientation.y:.4f}, {odometryMsg.pose.orientation.z:.4f}"
             

@@ -163,8 +163,8 @@ class ChooseWindow:
                 image_topics.append("S0/camd")
                 num_subs += 1
 
-        image_types = ["Image" for i in range(num_subs)]
-        image_typeclasses = [eCALImage.Image for i in range(num_subs)]
+        image_types = ["Image" for _ in range(num_subs)]
+        image_typeclasses = [eCALImage.Image for _ in range(num_subs)]
         
         if self.cb_vio.checked:
             flag_dict['vio_status'] = True
@@ -196,11 +196,18 @@ class VideoWindow:
         self.expMax = 12000
         self.sensIsoMax = 800
 
+        # CONFIGURE FONTS
+        self.font_large = gui.FontDescription(typeface="monospace",
+                            style=gui.FontStyle.NORMAL,
+                            point_size=25)
+        self.font_id_large = gui.Application.instance.add_font(self.font_large)
+
         # CONFIGURE WINDOW
         self.window = gui.Application.instance.create_window(
             "Drone Monitor", 1300, 800)
         self.window.set_on_layout(self._on_layout_odom)
         self.window.set_on_close(self._on_close)
+
 
         # CONFIGURE MENU
         if gui.Application.instance.menubar is None:
@@ -332,8 +339,6 @@ class VideoWindow:
 
         tabs.add_tab("Odometry", odom_tab)
         self.collapse.add_child(tabs)
-
-        self.last_odom_ts = 0
         
         # video tab
         video_tab = gui.Vert(0.5 * em, gui.Margins(8,8,8,8))
@@ -401,6 +406,46 @@ class VideoWindow:
 
         tabs.add_tab("Video", video_tab)
 
+        # Stats
+        self.odom_stats_collapse = gui.CollapsableVert("Odometry stats", em, 
+                                gui.Margins(em, 0, 0, 0))
+
+        stats_tab = gui.Vert(0.5 * em, gui.Margins(8,8,8,8))
+        self.odom_stats_collapse.add_child(stats_tab)
+
+        stats_label = gui.Label("Aggregate statistics")
+        stats_label.text_color = gui.Color(1.0, 0.5, 0.0)
+        stats_tab.add_child(stats_label)
+        
+        self.first_odom = True
+        self.init_odom_ts = 0
+        self.last_odom_ts = 0
+        self.total_dist = 0
+        self.total_angle_rotation = 0
+        self.elapsed_time = 0
+        self.prev_drone_pose = None
+        self.avg_exp = {}
+        self.avg_gain = {}
+        
+        self.total_dist_label = gui.Label("Total distance")
+        self.total_dist_label.font_id = self.font_id_large
+        stats_tab.add_child(self.total_dist_label)
+
+        self.average_speed_label = gui.Label("Avg speed")
+        self.average_speed_label.font_id = self.font_id_large
+        stats_tab.add_child(self.average_speed_label)
+
+        self.average_ang_speed_label = gui.Label("Avg ang speed")
+        self.average_ang_speed_label.font_id = self.font_id_large
+        stats_tab.add_child(self.average_ang_speed_label)
+
+        self.average_exp = gui.Label("Avg exp")
+        self.average_exp.font_id = self.font_id_large
+        stats_tab.add_child(self.average_exp)
+
+        self.average_gain = gui.Label("Avg gain")
+        self.average_gain.font_id = self.font_id_large
+        stats_tab.add_child(self.average_gain)
 
         # message show
         label_info = gui.Label("Vio Information")
@@ -503,6 +548,7 @@ class VideoWindow:
 
         
         self.window.add_child(self.collapse)
+        self.window.add_child(self.odom_stats_collapse)
         self.window.add_child(self.panel_main)
         self.window.add_child(self.widget3d)
 
@@ -641,7 +687,12 @@ class VideoWindow:
         self.collapse.frame = gui.Rect(contentRect.x, 
                                 contentRect.y,
                                 260,
-                                contentRect.height)
+                                contentRect.height / 2)
+        
+        self.odom_stats_collapse.frame = gui.Rect(contentRect.x,
+                                self.collapse.frame.get_bottom(),
+                                260,
+                                contentRect.height / 2)      
 
         self.panel_main.frame = gui.Rect(self.collapse.frame.get_right(), 
                                 contentRect.y,
@@ -661,7 +712,12 @@ class VideoWindow:
         self.collapse.frame = gui.Rect(contentRect.x, 
                                 contentRect.y,
                                 260,
-                                contentRect.height)
+                                contentRect.height / 2)
+        
+        self.odom_stats_collapse.frame = gui.Rect(contentRect.x,
+                        self.collapse.frame.get_bottom(),
+                        260,
+                        contentRect.height / 2)   
 
         self.widget3d.frame = gui.Rect(self.collapse.frame.get_right(),
                                 contentRect.y,
@@ -943,6 +999,14 @@ def read_img(window):
         for imageName in ecal_images:
 
             imageMsg = ecal_images[imageName]
+            if imageName not in window.avg_exp and imageName not in window.avg_gain:
+                window.avg_exp[imageName] = (0, 0)
+                window.avg_gain[imageName] = (0, 0)
+            
+            window.avg_exp[imageName] = (window.avg_exp[imageName][0] + (imageMsg.exposureUSec - window.avg_exp[imageName][0]) / (window.avg_exp[imageName][1] + 1),
+                                         window.avg_exp[imageName][1] + 1)
+            window.avg_gain[imageName] = (window.avg_gain[imageName][0] + (imageMsg.gain - window.avg_gain[imageName][0]) / (window.avg_gain[imageName][1] + 1),
+                                          window.avg_gain[imageName][1] + 1)
 
             expTime_display = f"expTime = {imageMsg.exposureUSec}" 
             sensIso_display = f"sensIso = {imageMsg.gain}" 
@@ -1027,7 +1091,24 @@ def read_img(window):
                                   vio_sub.position_y,
                                   vio_sub.position_z], dtype=np.float64)
                     r = R.from_quat(quat).as_matrix()
-                    window.widget3d.scene.set_geometry_transform("drone", sp.SE3(r, t).matrix())
+                    new_drone_pose = sp.SE3(r, t)
+
+                    if window.first_odom:
+                        window.first_odom = False
+                        window.init_odom_ts = vio_sub.header.stamp
+
+                    if window.prev_drone_pose is not None:
+                        # compute axis angle of transfomation
+                        drone_transform = new_drone_pose.matrix() @ window.prev_drone_pose.inverse().matrix()
+                        transform_rotation = drone_transform[:3, :3]
+                        quat = R.from_matrix(transform_rotation).as_quat()
+                        axis_angle = 2 * np.arccos(quat[3])
+                        window.total_angle_rotation += axis_angle
+
+                    window.prev_drone_pose = new_drone_pose
+                    
+                    # set axis pose
+                    window.widget3d.scene.set_geometry_transform("drone", new_drone_pose.matrix())
 
                 if (vio_sub.position_x > window.floor_width / 2 or vio_sub.position_y > window.floor_height / 2):
                     line_mat = rendering.MaterialRecord()
@@ -1074,12 +1155,21 @@ def read_img(window):
                 vertices = np.array([
                     [prev_x_coor, prev_y_coor, prev_z_coor],  # previous coordinate
                     [current_x_coor, current_y_coor, current_z_coor], # updated coordinate
-                ],
-                dtype = np.float64)
+                ], dtype = np.float64)
+                norm = np.linalg.norm(vertices[1] - vertices[0])
+                window.total_dist += norm
                 edge = np.array([[0, 1],], dtype = np.int32)
 
                 odom_jump_detected = abs(vio_sub.ts - window.last_odom_ts) > JUMP_THRESHOLD
                 window.last_odom_ts = vio_sub.ts
+                window.elapsed_time = vio_sub.ts - window.init_odom_ts
+                if window.elapsed_time > 0:
+                    print()
+                    window.total_dist_label.text = f"total dist: {window.total_dist:.2f} m"
+                    window.average_speed_label.text = f"avg speed = {window.total_dist / window.elapsed_time * 1e9} m/s"
+                    window.average_ang_speed_label.text = f"avg angspeed = {window.total_angle_rotation / window.elapsed_time * 180 / np.pi * 1e9} deg/s"
+                    window.average_exp.text = f"avg exp = {window.avg_exp}"
+                    window.average_gain.text = f"avg gain = {window.avg_gain}"
 
                 # draw the sub line
                 if not np.array_equal(vertices[0], vertices[1]):
