@@ -7,7 +7,7 @@ import capnp
 import numpy as np
 
 import ecal.core.core as ecal_core
-from byte_subscriber import ByteSubscriber
+from capnp_subscriber import CapnpSubscriber
 
 capnp.add_import_hook(['../src/capnp'])
 
@@ -15,7 +15,7 @@ import imu_capnp as eCALImu
 
 first_message = True
 
-def callback(topic_name, msg, time):
+def callback(type, topic_name, msg, time):
 
     global first_message
 
@@ -48,7 +48,7 @@ def main():
     ecal_core.set_process_state(1, 1, "I feel good")
 
     # create subscriber and connect callback
-    sub = ByteSubscriber("S0/imu")
+    sub = CapnpSubscriber("Imu", "S0/imu")
     sub.set_callback(callback)
     
     # idle main thread

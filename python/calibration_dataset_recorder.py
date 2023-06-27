@@ -230,9 +230,13 @@ def main(mode):
                 image_name += imageName + " "
 
                 imageMsg = image_dict[imageName]
-                mat = np.frombuffer(imageMsg.data, dtype=np.uint8)
+                try:
+                    mat = np.frombuffer(imageMsg.data, dtype=np.uint8)
+                except:
+                    print("decoding error, ignore frame")
+                    continue
                 mat = mat.reshape((imageMsg.height, imageMsg.width, 1))
-                mat_resized = image_resize(mat, width=120)
+                mat_resized = image_resize(mat, width=640)
 
                 image_list.append(mat_resized)
 
