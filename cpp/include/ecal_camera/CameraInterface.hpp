@@ -103,10 +103,16 @@ class MessageSynchroniserExact {
         }
     }
 
+    std::vector<T> tryGet() {
+        return tryGet(false);
+    }
+
+  private:
+    // queueLocked must be true only internally
     std::vector<T> tryGet(bool queueLocked = false) {
         auto lock = !queueLocked
-            ? std::unique_lock<std::mutex>(m_mutexQueue)
-            : std::unique_lock<std::mutex>();
+                        ? std::unique_lock<std::mutex>(m_mutexQueue)
+                        : std::unique_lock<std::mutex>();
 
         std::vector<T> ret;
         for (auto& queue : m_queueMap) {
@@ -138,8 +144,6 @@ class MessageSynchroniserExact {
 
         return ret; // empty return
     }
-
-  private:
 
     // returns 0 if sync not found
     // ensure m_mutexQueue is locked
