@@ -100,7 +100,7 @@ def main():
     while ecal_core.ok():
         for im in imshow_map:
             cv2.imshow(im, imshow_map[im])
-        cv2.waitKey(3)
+        cv2.waitKey(10)
         # time.sleep(0.1)
         
     
