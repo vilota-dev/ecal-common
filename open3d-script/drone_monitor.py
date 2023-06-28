@@ -935,10 +935,14 @@ def read_img(window):
 
     while ecal_core.ok():
         # synced mode
-        if (flag_dict['synced_status']):
-            ecal_images = synced_recorder.pop_sync_queue()
+
+        if len(image_topics) != 0:
+            if (flag_dict['synced_status']):
+                ecal_images = synced_recorder.pop_sync_queue()
+            else:
+                ecal_images = asynced_recorder.pop_sync_queue()
         else:
-            ecal_images = asynced_recorder.pop_sync_queue()
+            ecal_images = []
 
         for imageName in ecal_images:
 
@@ -1108,6 +1112,7 @@ def read_img(window):
                 window.widget3d.look_at(target, camera_pos, up)
 
         window.window.post_redraw()
+        time.sleep(0.1)
 
     # finalize eCAL API
     ecal_core.finalize()
