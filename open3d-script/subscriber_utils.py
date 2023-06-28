@@ -12,6 +12,10 @@ import image_capnp as eCALImage
 import imu_capnp as eCALImu
 import tagdetection_capnp as eCALTagDetections
 
+import sys
+sys.path.insert(0, "../python")
+from utils import SyncedImageSubscriber
+
 import time
 
 import queue
@@ -76,241 +80,6 @@ class ImuSubscriber:
         #     print(self.m_queue.qsize())
         return self.m_queue.get()
 
-
-
-class SyncedImageSubscriber:
-    def __init__(self, topics):
-
-        self.subscribers = {}
-        self.queues = {} # store individual incoming images
-        self.synced_queue = queue.Queue(150) # store properly synced images
-        self.latest = None
-        self.size = len(topics)
-
-        # self.warn_drop = False
-
-        self.rolling = False
-
-        self.assemble = {}
-        self.assemble_index = -1
-
-        self.lock = Lock()
-
-        for topic in topics:
-            print(f"subscribing to image topic {topic}")
-            sub = self.subscribers[topic] = ByteSubscriber(topic)
-            sub.set_callback(self.callback)
-
-            self.queues[topic] = queue.Queue(10)
-
-    # def queue_clear(self):
-    #     with self.lock:
-
-    #         for queueName in self.queues:
-
-    #             queue = self.queues[queueName]
-    #             queue = queue.Queue(30)
-
-    def queue_update(self):
-
-        # with self.lock:
-
-        for queueName in self.queues:
-
-            m_queue = self.queues[queueName]
-
-            # already in assemble, no need to get from queue
-            if queueName in self.assemble:
-                continue
-
-            while True:
-
-                if m_queue.empty():
-                    break
-
-                imageMsg = m_queue.get()
-
-                if self.assemble_index < imageMsg.header.stamp:
-                    # we shall throw away the assemble and start again
-                    
-                    if self.assemble_index != -1:
-                        print(f"reset index to {imageMsg.header.stamp}")
-
-                    self.assemble_index = imageMsg.header.stamp
-                    self.assemble = {}
-                    self.assemble[queueName] = imageMsg
-                    
-                    continue
-                elif self.assemble_index > imageMsg.header.stamp:
-                    print(f"ignore {queueName} for later")
-                    continue
-                else:
-                    self.assemble[queueName] = imageMsg
-                    break
-
-        
-        # check for full assembly
-
-        if len(self.assemble) == self.size:
-            
-            self.latest = self.assemble
-
-            if self.rolling:
-                try:
-                    self.synced_queue.put(self.assemble, block=False)
-                except queue.Full:
-                    print("image queue full")
-                    self.synced_queue.get()
-                    self.synced_queue.put(self.assemble)
-            
-
-            self.assemble = {}
-
-            # print(f"success assembling {self.assemble_index / 1.e9}")
-
-            self.assemble_index = -1
-
-            # if self.synced_queue.full():
-            #     if self.warn_drop is True:
-            #         print("image sync_queue is not processed in time")
-            #     self.synced_queue.get()
-
-                
-
-                
-
-
-    def callback(self, topic_name, msg, ts):
-            # need to remove the .decode() function within the Python API of ecal.core.subscriber StringSubscriber
-        with eCALImage.Image.from_bytes(msg) as imageMsg:
-            # print(f"{topic_name} seq = {imageMsg.header.seq}, with {len(msg)} bytes, encoding = {imageMsg.encoding}")
-            # print(f"width = {imageMsg.width}, height = {imageMsg.height}")
-            # print(f"exposure = {imageMsg.exposureUSec}, gain = {imageMsg.gain}")
-
-            self.queues[topic_name].put(imageMsg)
-
-            with self.lock:
-                self.queue_update()
-
-    def pop_latest(self):
-
-        with self.lock:
-
-            if self.latest == None:
-                return {}
-            else:
-                return self.latest
-
-    def pop_sync_queue(self):
-        # not protected for read
-
-        return self.synced_queue.get()
-
-        # try:
-        #     return self.synced_queue.get(False)
-        # except queue.Empty:
-        #     return None
-
-
-
-class AsyncedImageSubscriber:
-    def __init__(self, topics):
-
-        self.subscribers = {}
-        self.queues = {} # store individual incoming images
-        self.asynced_queue = queue.Queue(150) # store properly synced images
-        self.latest = None
-        self.size = len(topics)
-
-        # self.warn_drop = False
-
-        self.rolling = False
-
-        self.assemble = {}
-
-        self.lock = Lock()
-
-        for topic in topics:
-            print(f"subscribing to image topic {topic}")
-            sub = self.subscribers[topic] = ByteSubscriber(topic)
-            sub.set_callback(self.callback)
-
-            self.queues[topic] = queue.Queue(10)
-
-
-    def queue_update(self):
-
-        # with self.lock:
-
-        for queueName in self.queues:
-
-            m_queue = self.queues[queueName]
-
-            # already in assemble, no need to get from queue
-            if queueName in self.assemble:
-                continue
-
-            while True:
-
-                if m_queue.empty():
-                    break
-
-                imageMsg = m_queue.get()
-                self.assemble[queueName] = imageMsg
-                
-
-        
-        # check for full assembly
-
-        if len(self.assemble) == self.size:
-            
-            self.latest = self.assemble
-
-            if self.rolling:
-                try:
-                    self.asynced_queue.put(self.assemble, block=False)
-                except queue.Full:
-                    print("image queue full")
-                    self.asynced_queue.get()
-                    self.asynced_queue.put(self.assemble)
-            
-
-            self.assemble = {}
-
-
-
-                
-
-    def callback(self, topic_name, msg, ts):
-            # need to remove the .decode() function within the Python API of ecal.core.subscriber StringSubscriber
-        with eCALImage.Image.from_bytes(msg) as imageMsg:
-
-            self.queues[topic_name].put(imageMsg)
-
-            with self.lock:
-                self.queue_update()
-
-    def pop_latest(self):
-
-        with self.lock:
-
-            if self.latest == None:
-                return {}
-            else:
-                return self.latest
-
-    def pop_async_queue(self):
-        # not protected for read
-
-        return self.asynced_queue.get()
-
-        # try:
-        #     return self.synced_queue.get(False)
-        # except queue.Empty:
-        #     return None
-
-
-
 class VioSubscriber:
 
     def __init__(self, vio_topic):
@@ -318,6 +87,8 @@ class VioSubscriber:
         self.vio_sub = ByteSubscriber(vio_topic)
         self.vio_msg = ""
         self.vio_sub.set_callback(self._vio_callback)
+
+        self.vio_callbacks = []
 
         self.position_x = 0.0
         self.position_y = 0.0
@@ -328,18 +99,19 @@ class VioSubscriber:
         self.orientation_z = 0.0
         self.orientation_w = 0.0
 
+        self.header = None
+        self.ts = 0.0
+
+    def register_callback(self, cb):
+        self.vio_callbacks.append(cb)
 
     def _vio_callback(self, topic_name, msg, time_ecal):
-
         # need to remove the .decode() function within the Python API of ecal.core.subscriber ByteSubscriber
-        
+                
         with eCALOdometry3d.Odometry3d.from_bytes(msg) as odometryMsg:
 
-            # if first_message:
-            #     print(f"bodyFrame = {odometryMsg.bodyFrame}")
-            #     print(f"referenceFrame = {odometryMsg.referenceFrame}")
-            #     print(f"velocityFrame = {odometryMsg.velocityFrame}")
-            #     first_message = False
+            for cb in self.vio_callbacks:
+                cb("capnp:Odometry3D", topic_name, odometryMsg, time_ecal)
 
             # read in data
             self.position_x = odometryMsg.pose.position.x
@@ -351,7 +123,9 @@ class VioSubscriber:
             self.orientation_z = odometryMsg.pose.orientation.z
             self.orientation_w = odometryMsg.pose.orientation.w
 
+            self.ts = odometryMsg.header.stamp
             # text
+            self.header = odometryMsg.header
             position_msg = f"position: \n {odometryMsg.pose.position.x:.4f}, {odometryMsg.pose.position.y:.4f}, {odometryMsg.pose.position.z:.4f}"
             orientation_msg = f"orientation: \n  {odometryMsg.pose.orientation.w:.4f}, {odometryMsg.pose.orientation.x:.4f}, {odometryMsg.pose.orientation.y:.4f}, {odometryMsg.pose.orientation.z:.4f}"
             
@@ -362,24 +136,46 @@ class VioSubscriber:
             
             self.vio_msg = position_msg + "\n" + orientation_msg + "\n" + device_latency_msg + "\n" + host_latency_msg
 
+
+
 class TagDetectionsSubscriber:
+    lock = Lock()
+
     def __init__(self, tags_topic):
-        self.tags_sub = ByteSubscriber(tags_topic)
-        self.tags_sub.set_callback(self.callback)
+        self.uses_vio = False
+
+        self.types = ["TagDetections"]
+        self.topics = [tags_topic]
+        self.typeclasses = [eCALTagDetections.TagDetections]
+
+        self.tags_sub = SyncedImageSubscriber(self.types, self.topics, self.typeclasses, enforce_sync=True)
+        self.tags_sub.register_callback(self.callback)
+
         self.topic = tags_topic
         self.tags = None
+        self.vio = None
         self.new_data = False
         self.tag_geometries = set()
         self.tag_labels = set()
 
-    def callback(self, topic_name, msg, ts):
-        with eCALTagDetections.TagDetections.from_bytes(msg) as tagDetectionsMsg:
-            self.tags = tagDetectionsMsg
+    def add_vio_sub(self, vio_sub, vio_topic):
+        self.uses_vio = True
+        self.types.append("Odometry3d")
+        self.topics.append(vio_topic)
+        self.typeclasses.append(eCALOdometry3d.Odometry3d)
+        self.tags_sub.add_external_sub(vio_sub,
+                                       vio_topic)
+
+    def callback(self, msg, ts):
+        with TagDetectionsSubscriber.lock:
+            self.tags = msg[self.topics[0]]
+            self.vio = msg[self.topics[1]] if self.uses_vio else None
             self.new_data = True
-            print(f"received message with {len(tagDetectionsMsg.tags)} tags:")
-            for tag in tagDetectionsMsg.tags:
+            print(f"received message with {len(self.tags.tags)} tags at {self.tags.header.stamp}:")
+            for tag in self.tags.tags:
                 pose = tag.poseInCameraFrame.position
                 print(f"\ttag {tag.id} at {pose.x:.2f}, {pose.y:.2f}, {pose.z:.2f}")
+
 
 def image_resize(image, width = None, height = None, inter = cv2.INTER_AREA):
     # initialize the dimensions of the image to be resized and

@@ -27,7 +27,6 @@ struct TagDetection {
     pointsUndistortedPolygon @6 :FourPoints;
 
     poseInCameraFrame @7 :import "se3.capnp".Se3; # in RDF camera frame
-
 }
 
 struct TagDetections {

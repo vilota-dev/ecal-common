@@ -7,17 +7,23 @@ import sys
 import json
 
 import ecal.core.core as ecal_core
+import capnp
+
+capnp.add_import_hook(['../src/capnp'])
+
+import image_capnp as eCALImage
+import disparity_capnp as eCALDisparity
 
 from utils import SyncedImageSubscriber, image_msg_to_cv_mat, disparity_to_cv_mat, image_resize
 
 class SyncImageSaver:
-    def __init__(self, types, topics) -> None:
-        self.sub = SyncedImageSubscriber(types, topics)
+    def __init__(self, types, topics, typeclasses) -> None:
+        self.sub = SyncedImageSubscriber(types, topics, typeclasses, False)
 
     # def take_snapshot(self):
     #     image_dict = self.sub.pop_latest()
 
-def main(types, topics):
+def main(types, topics, typeclasses):
 
     # print eCAL version and date
     print("eCAL {} ({})\n".format(ecal_core.getversion(), ecal_core.getdate()))
@@ -28,7 +34,7 @@ def main(types, topics):
     # set process state
     ecal_core.set_process_state(1, 1, "I feel good")
 
-    saver = SyncImageSaver(types, topics)
+    saver = SyncImageSaver(types, topics, typeclasses)
 
     count = 1
 
@@ -127,7 +133,14 @@ def main(types, topics):
 if __name__ == "__main__":
 
     # types can be Image or Disparity
-    types = ["Image", "Image", "Image", "Image", "Disparity"]
-    topics = ["S0/cama", "S0/camb", "S0/stereo1_l", "S0/stereo1_r", "S0/disparity/stereo1"]
+    types = ["Disparity", "Disparity", "Disparity", "Disparity"]
+    typeclasses = [eCALDisparity.Disparity, 
+                   eCALDisparity.Disparity, 
+                   eCALDisparity.Disparity, 
+                   eCALDisparity.Disparity]
+    topics = ["S1/disparity/stereo1", 
+              "S0/disparity/stereo1", 
+              "S0/disparity/stereo2", 
+              "S1/disparity/stereo2"]
 
-    main(types, topics)
+    main(types, topics, typeclasses)
