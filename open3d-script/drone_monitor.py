@@ -199,7 +199,7 @@ class VideoWindow:
         # CONFIGURE FONTS
         self.font_large = gui.FontDescription(typeface="monospace",
                             style=gui.FontStyle.NORMAL,
-                            point_size=25)
+                            point_size=21)
         self.font_id_large = gui.Application.instance.add_font(self.font_large)
 
         # CONFIGURE WINDOW
@@ -426,6 +426,9 @@ class VideoWindow:
         self.prev_drone_pose = None
         self.avg_exp = {}
         self.avg_gain = {}
+        self.is_first_drift_tag = True
+        self.first_drift_tag = np.array([0, 0, 0], dtype=np.float64)
+        self.tag_dist_drift = 0
         
         self.total_dist_label = gui.Label("Total distance")
         self.total_dist_label.font_id = self.font_id_large
@@ -446,6 +449,10 @@ class VideoWindow:
         self.average_gain = gui.Label("Avg gain")
         self.average_gain.font_id = self.font_id_large
         stats_tab.add_child(self.average_gain)
+
+        self.tag_drift_label = gui.Label("Tag drift")
+        self.tag_drift_label.font_id = self.font_id_large
+        stats_tab.add_child(self.tag_drift_label)
 
         # message show
         label_info = gui.Label("Vio Information")
@@ -1072,6 +1079,26 @@ def read_img(window):
                     window.destroy_tag_labels(sub)
                     window.add_tags(stream, sub.tags, sub)
                     sub.new_data = False
+            
+            avg_tag_position = np.array([0, 0, 0], dtype=np.float64)
+            tag_found = False
+            count = 0
+
+            for tag_name in [f"tag_3 ({cam})" for cam in ["cama", "camb", "camc", "camd"]]:
+                if window.widget3d.scene.has_geometry(tag_name):
+                    tag_found = True
+                    avg_tag_position += window.widget3d.scene.get_geometry_transform(tag_name)[:3, 3]
+                    count += 1
+
+            if count > 0:
+                avg_tag_position /= count
+
+            if tag_found and window.is_first_drift_tag:
+                window.is_first_drift_tag = False
+                window.first_drift_tag = avg_tag_position
+            elif tag_found:
+                window.tag_dist_drift = np.linalg.norm(avg_tag_position - window.first_drift_tag)
+                print(window.tag_dist_drift)
 
             if flag_dict['vio_status']:
                 update_proxy(window.proxy_vio, vio_sub.vio_msg)
@@ -1164,12 +1191,13 @@ def read_img(window):
                 window.last_odom_ts = vio_sub.ts
                 window.elapsed_time = vio_sub.ts - window.init_odom_ts
                 if window.elapsed_time > 0:
-                    print()
-                    window.total_dist_label.text = f"total dist: {window.total_dist:.2f} m"
-                    window.average_speed_label.text = f"avg speed = {window.total_dist / window.elapsed_time * 1e9:.3f} m/s"
-                    window.average_ang_speed_label.text = f"avg angspeed = {window.total_angle_rotation / window.elapsed_time * 180 / np.pi * 1e9:.2f} deg/s"
+                    window.total_dist_label.text = f"total dist = \n {window.total_dist:.2f} m"
+                    window.average_speed_label.text = f"avg speed =  \n {window.total_dist / window.elapsed_time * 1e9:.3f} m/s"
+                    window.average_ang_speed_label.text = f"avg angspeed = \n {window.total_angle_rotation / window.elapsed_time * 180 / np.pi * 1e9:.2f} deg/s"
                     window.average_exp.text = f"avg exp = \n" + "\n".join([f"{key.split('/')[-1]} : {value[0]:.2f}" for (key, value) in window.avg_exp.items()])
                     window.average_gain.text = f"avg exp = \n" + "\n".join([f"{key.split('/')[-1]} : {value[0]:.2f}" for (key, value) in window.avg_gain.items()])
+                    if tag_found and window.total_dist > 0:
+                        window.tag_drift_label.text = f"tag drift = {window.tag_dist_drift / window.total_dist * 100:.2f} %"
 
                 # draw the sub line
                 if not np.array_equal(vertices[0], vertices[1]):
