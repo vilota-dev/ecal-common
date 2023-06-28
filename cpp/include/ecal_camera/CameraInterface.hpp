@@ -109,7 +109,7 @@ class MessageSynchroniserExact {
 
   private:
     // queueLocked must be true only internally
-    std::vector<T> tryGet(bool queueLocked = false) {
+    std::vector<T> tryGet(bool queueLocked) {
         auto lock = !queueLocked
                         ? std::unique_lock<std::mutex>(m_mutexQueue)
                         : std::unique_lock<std::mutex>();
