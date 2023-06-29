@@ -207,6 +207,8 @@ struct CameraParams {
 
     std::vector<std::string> idxTopicMap; // being populated, without prefix
     std::map<std::string, uint16_t> topicIdxMap; // being populated, without prefix
+
+    std::string product_name;
 };
 
 struct CameraCalibration {
