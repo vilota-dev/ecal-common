@@ -163,11 +163,11 @@ jobs:
     steps:
       - build_capnproto
 
-  build-vk-vio:
+  build-ecal-common:
     parameters:
       os:
         type: executor
     executor: << parameters.os >>
     steps:
-      - build_vk_vio
+      - build_ecal_common
 
