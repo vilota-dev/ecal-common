@@ -70,7 +70,7 @@ class MessageSynchroniserExact {
 
                     if ( m_lastSyncTs > 0 ) {
                         std::cout << name << ": too much message in the queue, sync msg is broken?" << std::endl;
-                    }else{
+                    } else {
                         std::cout << name << ": buffer full while no sync detected yet..." << std::endl;
                     }
 
