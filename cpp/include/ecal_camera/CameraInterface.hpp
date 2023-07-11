@@ -15,10 +15,17 @@
 namespace vk 
 {
 
-template <typename T>
+enum SynchroniserReturnMode {
+    CALLBACK_MODE,
+    POLLING_MODE
+};
+
+template <typename T, SynchroniserReturnMode M = POLLING_MODE>
 class MessageSynchroniserExact {
 
   public:
+    using CallbackF = std::function<void(std::vector<T>)>;
+
     void init(size_t N, const std::vector<std::string> &names = {},
               std::string prefix = {}, size_t queueSize = 10, bool realtime = true) {
         m_N = N;
@@ -63,7 +70,7 @@ class MessageSynchroniserExact {
 
                     if ( m_lastSyncTs > 0 ) {
                         std::cout << name << ": too much message in the queue, sync msg is broken?" << std::endl;
-                    }else{
+                    } else {
                         std::cout << name << ": buffer full while no sync detected yet..." << std::endl;
                     }
 
@@ -100,11 +107,26 @@ class MessageSynchroniserExact {
             } else {
                 cleanupQueues();
             }
+
+            if (M == CALLBACK_MODE) {
+                auto ret = tryGet(true);
+                if (ret.size()) {
+                    std::for_each(m_callbacks.begin(), m_callbacks.end(), [&](auto& cb) {
+                        cb(ret);
+                    });
+                }
+            }
         }
     }
 
-    std::vector<T> tryGet() {
+    template <SynchroniserReturnMode U = M>
+    std::enable_if_t<U == POLLING_MODE, std::vector<T>> tryGet() {
         return tryGet(false);
+    }
+
+    template <SynchroniserReturnMode U = M>
+    std::enable_if_t<U == CALLBACK_MODE, void> registerCallback(CallbackF cb) {
+        m_callbacks.push_back(cb);
     }
 
   private:
@@ -194,6 +216,7 @@ class MessageSynchroniserExact {
 
     size_t m_queueSize;
     bool m_realtime;
+    std::vector<CallbackF> m_callbacks{};
 };
 
 struct CameraParams {
