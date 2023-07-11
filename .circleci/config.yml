@@ -152,3 +152,22 @@ workflows:
             - ubuntu2204
           requires:
             - build-capnproto
+
+
+jobs:
+  build-capnproto:
+    parameters:
+      os:
+        type: executor
+    executor: << parameters.os >>
+    steps:
+      - build_capnproto
+
+  build-vk-vio:
+    parameters:
+      os:
+        type: executor
+    executor: << parameters.os >>
+    steps:
+      - build_vk_vio
+
