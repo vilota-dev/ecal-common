@@ -11,6 +11,7 @@ import odometry3d_capnp as eCALOdometry3d
 import image_capnp as eCALImage
 import imu_capnp as eCALImu
 import tagdetection_capnp as eCALTagDetections
+import path_capnp as eCALPath
 
 import sys
 sys.path.insert(0, "../python")
@@ -79,6 +80,27 @@ class ImuSubscriber:
         # if self.m_queue.qsize() > 10:
         #     print(self.m_queue.qsize())
         return self.m_queue.get()
+
+class AprilPathSubscriber:
+
+    def __init__(self, path_topic):
+        self.path_sub = ByteSubscriber(path_topic)
+        self.path_sub.set_callback(self._path_callback)
+        self.path_msg = None
+        self.has_updated = False
+
+    def get_path(self):
+        if self.has_updated:
+            self.has_updated = False
+            return self.path_msg
+        else:
+            return None
+
+    def _path_callback(self, topic_name, msg, time_ecal):
+        print("PATH:", topic_name)
+        with eCALPath.Path.from_bytes(msg) as pathMsg:
+            self.path_msg = pathMsg
+            self.has_updated = True
 
 class VioSubscriber:
 

@@ -32,7 +32,7 @@ import sophus as sp
 
 from PIL import Image
 
-from subscriber_utils import TagDetectionsSubscriber, VioSubscriber, add_ui_on_ndarray, is_numeric
+from subscriber_utils import TagDetectionsSubscriber, VioSubscriber, AprilPathSubscriber, add_ui_on_ndarray, is_numeric
 from utils import SyncedImageSubscriber
 
 from o3d_utils import create_grid_mesh
@@ -525,6 +525,12 @@ class VideoWindow:
         self.drone.translate([0, 0, 0], relative=False)
         self.widget3d.scene.add_geometry("drone", self.drone, lit)
 
+        # add small path drone
+        self.path_drone = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.2)
+        self.path_drone.compute_vertex_normals()
+        self.path_drone.translate([0, 0, 0], relative=False)
+        self.widget3d.scene.add_geometry("path_drone", self.path_drone, lit)
+
         self.path_line_list = []
         self.cleaning_now = False
 
@@ -924,14 +930,16 @@ def read_img(window):
                 "camc": TagDetectionsSubscriber("S0/tags/camc"),
                 "camd": TagDetectionsSubscriber("S0/tags/camd"), }
     vio_sub = None
+    path_sub = None
 
     # set up vio subscriber
     if (flag_dict['vio_status']):
-        vio_sub = VioSubscriber("S0/vio_odom")
-        tag_sub["cama"].add_vio_sub(vio_sub, "S0/vio_odom")
-        tag_sub["camb"].add_vio_sub(vio_sub, "S0/vio_odom")
-        tag_sub["camc"].add_vio_sub(vio_sub, "S0/vio_odom")
-        tag_sub["camd"].add_vio_sub(vio_sub, "S0/vio_odom")
+        vio_sub = VioSubscriber(vio_topic)
+        path_sub = AprilPathSubscriber("S0/april_odom_path")
+        tag_sub["cama"].add_vio_sub(vio_sub, vio_topic)
+        tag_sub["camb"].add_vio_sub(vio_sub, vio_topic)
+        tag_sub["camc"].add_vio_sub(vio_sub, vio_topic)
+        tag_sub["camd"].add_vio_sub(vio_sub, vio_topic)
     else:
         window.proxy_vio.set_widget(gui.Label("vio is not on"))
     
@@ -1218,6 +1226,64 @@ def read_img(window):
                         window.path_line_list.append(line_name)
                         window.widget3d.scene.add_geometry(line_name, line_path, mat, False)
                         line_index +=1
+
+                path_msg = None
+
+                if path_sub is not None:
+                    path_msg = path_sub.get_path()
+
+                if path_msg is not None:
+                    path = o3d.geometry.LineSet()
+
+                    path_points = []
+                    path_lines = []
+                    path_colors = []
+
+                    count = 0
+                    last_odom = None
+                    path_points.append([
+                        path_msg.path[0].px, 
+                        path_msg.path[0].py, 
+                        path_msg.path[0].pz])
+
+                    for i in range(1, len(path_msg.path)):
+                        vertex = [path_msg.path[i].px,
+                                  path_msg.path[i].py,
+                                  path_msg.path[i].pz]
+                                                
+                        if np.linalg.norm(np.array(vertex) - np.array(path_points[-1])) > 0.1:
+                            path_points.append(vertex)
+                            path_lines.append([count, count + 1])
+                            path_colors.append([0, 1, 0])
+                            last_odom = path_msg.path[i]
+                            count += 1
+
+                    if count > 0:
+                        path.points = o3d.utility.Vector3dVector(path_points)
+                        path.lines = o3d.utility.Vector2iVector(path_lines)
+                        path.colors = o3d.utility.Vector3dVector(path_colors)
+
+                        quat = [last_odom.qx, 
+                                last_odom.qy,
+                                last_odom.qz,
+                                last_odom.qw]
+
+                        if np.linalg.norm(quat) > 0: # check valid quaternion
+                            path_t = np.array([
+                                last_odom.px,
+                                last_odom.py,
+                                last_odom.pz
+                            ], dtype=np.float64)
+                            path_r = R.from_quat(quat).as_matrix()
+                            new_path_drone_pose = sp.SE3(path_r, path_t)
+                            
+                            # set axis pose
+                            window.widget3d.scene.set_geometry_transform("path_drone", new_path_drone_pose.matrix())
+                        
+                        if window.widget3d.scene.has_geometry("path"):
+                            window.widget3d.scene.remove_geometry("path")
+
+                        window.widget3d.scene.add_geometry("path", path, mat, False)
             else:
                 pass
             

@@ -16,8 +16,7 @@ def main():
     st.sidebar.divider()
     st.sidebar.slider("Azimuth Range", -60, 60, (-2, 2), key='az-range')
     st.sidebar.slider("Elevation Range", -50, 50, (-2, 2), key='el-range')
-    st.sidebar.slider("Elevation Range", 0.0, 20.0, (4.0, 6.0), step=0.1, key='dist-range')
-
+    st.sidebar.slider("Distance Range", 0.0, 20.0, (4.0, 6.0), step=0.1, key='dist-range')
 
     # ------------------ Main page Placeholders ------------------ #
     title_placeholder = st.empty()
