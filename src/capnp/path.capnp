@@ -4,5 +4,5 @@ using Cxx = import "/capnp/c++.capnp";
 $Cxx.namespace("ecal");
 
 struct Path {
-    path @0 :List(import "odometry3d.capnp".Odometry3d);
+    path @0 :List(import "lightodometry3d.capnp".LightOdometry3d);
 }
