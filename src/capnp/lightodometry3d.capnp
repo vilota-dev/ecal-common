@@ -1,4 +1,4 @@
-@0xd569317e0d67b155;
+@0x951de96fde3ac0b3;
 
 using Cxx = import "/capnp/c++.capnp";
 $Cxx.namespace("ecal");
