@@ -103,7 +103,6 @@ class AprilPathSubscriber:
             self.has_updated = True
 
 class VioSubscriber:
-
     def __init__(self, vio_topic):
 
         self.vio_sub = ByteSubscriber(vio_topic)
@@ -111,6 +110,9 @@ class VioSubscriber:
         self.vio_sub.set_callback(self._vio_callback)
 
         self.vio_callbacks = []
+
+        self.pose = None
+        self.header = None
 
         self.position_x = 0.0
         self.position_y = 0.0
@@ -121,7 +123,6 @@ class VioSubscriber:
         self.orientation_z = 0.0
         self.orientation_w = 0.0
 
-        self.header = None
         self.ts = 0.0
 
     def register_callback(self, cb):
@@ -132,10 +133,13 @@ class VioSubscriber:
                 
         with eCALOdometry3d.Odometry3d.from_bytes(msg) as odometryMsg:
 
-            for cb in self.vio_callbacks:
-                cb("capnp:Odometry3D", topic_name, odometryMsg, time_ecal)
+            # for cb in self.vio_callbacks:
+            #     cb("capnp:Odometry3D", topic_name, odometryMsg, time_ecal)
 
             # read in data
+            self.pose = odometryMsg.pose
+            self.ts = odometryMsg.header.stamp
+
             self.position_x = odometryMsg.pose.position.x
             self.position_y = odometryMsg.pose.position.y
             self.position_z = odometryMsg.pose.position.z
@@ -145,7 +149,6 @@ class VioSubscriber:
             self.orientation_z = odometryMsg.pose.orientation.z
             self.orientation_w = odometryMsg.pose.orientation.w
 
-            self.ts = odometryMsg.header.stamp
             # text
             self.header = odometryMsg.header
             position_msg = f"position: \n {odometryMsg.pose.position.x:.4f}, {odometryMsg.pose.position.y:.4f}, {odometryMsg.pose.position.z:.4f}"

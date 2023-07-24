@@ -1119,16 +1119,19 @@ def read_img(window):
                 prev_y_coor = window.widget3d.scene.get_geometry_transform("drone")[1][3]
                 prev_z_coor = window.widget3d.scene.get_geometry_transform("drone")[2][3]
                 
-                x = vio_sub.orientation_x
-                y = vio_sub.orientation_y
-                z = vio_sub.orientation_z
-                w = vio_sub.orientation_w  
-                quat = [x, y, z, w]
+                if vio_sub.pose != None:
+                    x = vio_sub.pose.orientation.x
+                    y = vio_sub.pose.orientation.y
+                    z = vio_sub.pose.orientation.z
+                    w = vio_sub.pose.orientation.w  
+                    quat = [x, y, z, w]
+                else:
+                    quat = [0, 0, 0, 0]
 
-                if np.linalg.norm(quat) > 0: # check valid quaternion
-                    t = np.array([vio_sub.position_x,
-                                  vio_sub.position_y,
-                                  vio_sub.position_z], dtype=np.float64)
+                if np.linalg.norm(quat) > 0 and vio_sub.pose != None: # check valid quaternion
+                    t = np.array([vio_sub.pose.position.x,
+                                  vio_sub.pose.position.y,
+                                  vio_sub.pose.position.z], dtype=np.float64)
                     r = R.from_quat(quat).as_matrix()
                     new_drone_pose = sp.SE3(r, t)
 
@@ -1145,11 +1148,11 @@ def read_img(window):
                         window.total_angle_rotation += axis_angle
 
                     window.prev_drone_pose = new_drone_pose
-                    
-                    # set axis pose
-                    window.widget3d.scene.set_geometry_transform("drone", new_drone_pose.matrix())
+                else:
+                    continue
 
-                if (abs(vio_sub.position_x) > window.floor_width / 2 or abs(vio_sub.position_y) > window.floor_height / 2):
+                # expand floor dynamically
+                if (abs(vio_sub.pose.position.x) > window.floor_width / 2 or abs(vio_sub.pose.position.y) > window.floor_height / 2):
                     line_mat = rendering.MaterialRecord()
                     line_mat.shader = "unlitLine"
                     line_mat.line_width = 2
@@ -1157,8 +1160,8 @@ def read_img(window):
                     window.widget3d.scene.remove_geometry("floor_grid")
                     window.widget3d.scene.remove_geometry("floor")
 
-                    width = 2 * max(vio_sub.position_x, window.floor_width)
-                    height = 2 * max(vio_sub.position_y, window.floor_height)
+                    width = 2 * max(vio_sub.pose.position.x, window.floor_width)
+                    height = 2 * max(vio_sub.pose.position.y, window.floor_height)
 
                     window.floor_width = max(width, height)
                     window.floor_height = max(width, height)
@@ -1186,9 +1189,9 @@ def read_img(window):
 
 
                 # print("trans matrix", drone_transform)
-                current_x_coor = window.widget3d.scene.get_geometry_transform("drone")[0][3]
-                current_y_coor = window.widget3d.scene.get_geometry_transform("drone")[1][3]
-                current_z_coor = window.widget3d.scene.get_geometry_transform("drone")[2][3]
+                current_x_coor = new_drone_pose.matrix()[0][3]
+                current_y_coor = new_drone_pose.matrix()[1][3]
+                current_z_coor = new_drone_pose.matrix()[2][3]
 
                 # path sub line
                 vertices = np.array([
@@ -1212,7 +1215,28 @@ def read_img(window):
                         window.tag_drift_label.text = f"tag drift = {window.tag_dist_drift / window.total_dist * 100:.2f} %"
 
                 # draw the sub line
-                if not np.array_equal(vertices[0], vertices[1]):
+
+                good = True
+
+                if np.isnan(vertices).any():
+                    print("we have nan coordinates {vertices}")
+                    good = False
+
+                if norm < 0.01:
+                    good = False
+
+                if vio_sub.ts < window.last_odom_ts:
+                    good = False
+                    print("ts regression")
+
+                if odom_jump_detected:
+                    good = False
+                    print("odom jump")
+                    print(vertices)
+                elif good:
+                    window.widget3d.scene.set_geometry_transform("drone", new_drone_pose.matrix())
+
+                if good:
                     line_path = o3d.geometry.LineSet()
                     line_path.points = o3d.utility.Vector3dVector(vertices)
                     line_path.lines = o3d.utility.Vector2iVector(edge)
@@ -1226,6 +1250,9 @@ def read_img(window):
                         window.path_line_list.append(line_name)
                         window.widget3d.scene.add_geometry(line_name, line_path, mat, False)
                         line_index +=1
+                    
+                    # set axis pose
+                    window.widget3d.scene.set_geometry_transform("drone", new_drone_pose.matrix())
 
                 path_msg = None
 
