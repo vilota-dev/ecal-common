@@ -426,9 +426,13 @@ class VideoWindow:
         self.prev_drone_pose = None
         self.avg_exp = {}
         self.avg_gain = {}
+        # tag drift
         self.is_first_drift_tag = True
         self.first_drift_tag = np.array([0, 0, 0], dtype=np.float64)
         self.tag_dist_drift = 0
+        self.is_first_path_drift_tag = True
+        self.first_path_tag = np.array([0, 0, 0], dtype=np.float64)
+        self.path_dist_drift = 0
         
         self.total_dist_label = gui.Label("Total distance")
         self.total_dist_label.font_id = self.font_id_large
@@ -586,6 +590,56 @@ class VideoWindow:
             self.widget3d.remove_3d_label(label)
         sub.tag_labels = set()
 
+    def get_tag_pose(self, body_T_tag, odometry_msg):
+        quat = [odometry_msg.orientation_x,
+                odometry_msg.orientation_y,
+                odometry_msg.orientation_z, 
+                odometry_msg.orientation_w]
+        quat_norm = np.linalg.norm(quat) # will be 0 if no vio msg
+
+        if quat_norm > 0:
+            vio_t = np.array([odometry_msg.position_x,
+                            odometry_msg.position_y,
+                            odometry_msg.position_z], dtype=np.float64)
+            vio_r = R.from_quat(quat).as_matrix()
+            origin_T_body = sp.SE3(vio_r, vio_t)
+            return origin_T_body * body_T_tag
+        else:
+            print("WARNING: Odometry quarternion not valid")
+            return body_T_tag
+        
+    def get_transformed_tags(self, tag_vio_sub, height_inject = None):
+        tags = []
+        for value in tag_vio_sub.values():
+            if value.tags is not None and value.vio is not None:
+                body_T_cam = self._capnp_se3_to_sophus_se3(value.tags.cameraExtrinsic.bodyFrame, height_inject)
+                vio = value.vio
+                cam_tags = {}
+                for tag in value.tags.tags:
+                    cam_tags[tag.id] = self.get_tag_pose(body_T_cam * 
+                                                        self._capnp_se3_to_sophus_se3(tag.poseInCameraFrame), 
+                                                        vio)
+                tags.append(cam_tags)
+        return tags
+    
+    def get_avg_tag_position(self, vio_tags):
+        print(vio_tags)
+        avg_tag_position = np.array([0, 0, 0], dtype=np.float64)
+        tag_found = False
+        count = 0
+
+        for cam_tags in vio_tags:
+            # 3 is re-identification tag
+            if 3 in cam_tags:
+                tag_found = True
+                avg_tag_position += cam_tags[3].translation()
+                count += 1
+
+        if count > 0:
+            avg_tag_position /= count
+
+        return avg_tag_position, tag_found
+
     def add_tags(self, stream, tags, sub):
         if (not tags is None):
             camera_frame_msg = tags.cameraExtrinsic.bodyFrame
@@ -601,25 +655,12 @@ class VideoWindow:
                 tag_camera_pose_msg = tag.poseInCameraFrame
                 
                 camera_T_tag = self._capnp_se3_to_sophus_se3(tag_camera_pose_msg)
+                body_T_tag = body_T_camera * camera_T_tag
 
                 if sub.uses_vio and sub.vio is not None:
-                    quat = [sub.vio.pose.orientation.x,
-                            sub.vio.pose.orientation.y,
-                            sub.vio.pose.orientation.z, 
-                            sub.vio.pose.orientation.w]
-                    quat_norm = np.linalg.norm(quat) # will be 0 if no vio msg
+                    tag_pose = self.get_tag_pose(body_T_tag, sub.vio)
                 else:
-                    quat_norm = 0
-
-                if quat_norm > 0:
-                    vio_t = np.array([sub.vio.pose.position.x,
-                                  sub.vio.pose.position.y,
-                                  sub.vio.pose.position.z], dtype=np.float64)
-                    vio_r = R.from_quat(quat).as_matrix()
-                    origin_T_body = sp.SE3(vio_r, vio_t)
-                    tag_pose = origin_T_body * body_T_camera * camera_T_tag
-                else:
-                    tag_pose = body_T_camera * camera_T_tag                
+                    tag_pose = body_T_tag
 
                 # place axis at bottom right corner of tag to match debug image
                 axis_translate = self.make_se3(0,
@@ -676,7 +717,7 @@ class VideoWindow:
                 self.widget3d.scene.show_geometry(tag_axis_name, False)
                 sub.tag_geometries.remove(tag_name)
 
-    def _capnp_se3_to_sophus_se3(self, capnp_se3):
+    def _capnp_se3_to_sophus_se3(self, capnp_se3, height_inject = None):
         w = capnp_se3.orientation.w
         x = capnp_se3.orientation.x
         y = capnp_se3.orientation.y
@@ -684,7 +725,7 @@ class VideoWindow:
 
         return self.make_se3(capnp_se3.position.x,
                              capnp_se3.position.y,
-                             capnp_se3.position.z,
+                             capnp_se3.position.z if height_inject is None else height_inject,
                              w, x, y, z)
     
     def make_se3(self, x, y, z, qw, qx, qy, qz):
@@ -930,16 +971,31 @@ def read_img(window):
                 "camc": TagDetectionsSubscriber("S0/tags/camc"),
                 "camd": TagDetectionsSubscriber("S0/tags/camd"), }
     vio_sub = None
+    loop_vio_sub = None
     path_sub = None
+
+    tag_sub_loop = { "cama": TagDetectionsSubscriber("S0/tags/cama"),
+            "camb": TagDetectionsSubscriber("S0/tags/camb"),
+            "camc": TagDetectionsSubscriber("S0/tags/camc"),
+            "camd": TagDetectionsSubscriber("S0/tags/camd"), }
 
     # set up vio subscriber
     if (flag_dict['vio_status']):
         vio_sub = VioSubscriber(vio_topic)
+        
+        april_odom_topic = "S0/april_odom"
+        loop_vio_sub = VioSubscriber(april_odom_topic)
+
         path_sub = AprilPathSubscriber("S0/april_odom_path")
         tag_sub["cama"].add_vio_sub(vio_sub, vio_topic)
         tag_sub["camb"].add_vio_sub(vio_sub, vio_topic)
         tag_sub["camc"].add_vio_sub(vio_sub, vio_topic)
         tag_sub["camd"].add_vio_sub(vio_sub, vio_topic)
+
+        tag_sub_loop["cama"].add_vio_sub(loop_vio_sub, april_odom_topic)
+        tag_sub_loop["camb"].add_vio_sub(loop_vio_sub, april_odom_topic)
+        tag_sub_loop["camc"].add_vio_sub(loop_vio_sub, april_odom_topic)
+        tag_sub_loop["camd"].add_vio_sub(loop_vio_sub, april_odom_topic)
     else:
         window.proxy_vio.set_widget(gui.Label("vio is not on"))
     
@@ -1091,19 +1147,19 @@ def read_img(window):
                     window.destroy_tag_labels(sub)
                     window.add_tags(stream, sub.tags, sub)
                     sub.new_data = False
-            
-            avg_tag_position = np.array([0, 0, 0], dtype=np.float64)
-            tag_found = False
-            count = 0
 
-            for tag_name in [f"tag_3 ({cam})" for cam in ["cama", "camb", "camc", "camd"]]:
-                if window.widget3d.scene.has_geometry(tag_name):
-                    tag_found = True
-                    avg_tag_position += window.widget3d.scene.get_geometry_transform(tag_name)[:3, 3]
-                    count += 1
+            vio_height = None
+            if vio_sub.odometry_msg != None:
+                vio_height = vio_sub.odometry_msg.position_z
 
-            if count > 0:
-                avg_tag_position /= count
+            vio_tags = window.get_transformed_tags(tag_sub)
+            loop_tags = window.get_transformed_tags(tag_sub_loop, vio_height)
+
+            avg_tag_position, tag_found = window.get_avg_tag_position(vio_tags)
+            loop_avg_tag_position, loop_tag_found = window.get_avg_tag_position(loop_tags)
+
+            print("tag found (vio):", tag_found)
+            print("tag found (loop):", loop_tag_found)
 
             if tag_found and window.is_first_drift_tag:
                 window.is_first_drift_tag = False
@@ -1112,32 +1168,44 @@ def read_img(window):
                 window.tag_dist_drift = np.linalg.norm(avg_tag_position - window.first_drift_tag)
                 print(window.tag_dist_drift)
 
+            if loop_tag_found and window.is_first_path_drift_tag:
+                window.is_first_path_drift_tag = False
+                window.first_path_tag = loop_avg_tag_position
+            elif loop_tag_found:
+                window.path_dist_drift = np.linalg.norm(loop_avg_tag_position - window.first_path_tag)
+                print(window.path_dist_drift)
+
             if flag_dict['vio_status']:
                 update_proxy(window.proxy_vio, vio_sub.vio_msg)
 
                 prev_x_coor = window.widget3d.scene.get_geometry_transform("drone")[0][3]
                 prev_y_coor = window.widget3d.scene.get_geometry_transform("drone")[1][3]
                 prev_z_coor = window.widget3d.scene.get_geometry_transform("drone")[2][3]
+
+                odometry_msg = None
+
+                if vio_sub.odometry_msg != None:
+                    odometry_msg = vio_sub.odometry_msg
                 
-                if vio_sub.pose != None:
-                    x = vio_sub.pose.orientation.x
-                    y = vio_sub.pose.orientation.y
-                    z = vio_sub.pose.orientation.z
-                    w = vio_sub.pose.orientation.w  
+                if odometry_msg != None:
+                    x = odometry_msg.orientation_x
+                    y = odometry_msg.orientation_y
+                    z = odometry_msg.orientation_z
+                    w = odometry_msg.orientation_w  
                     quat = [x, y, z, w]
                 else:
                     quat = [0, 0, 0, 0]
 
-                if np.linalg.norm(quat) > 0 and vio_sub.pose != None: # check valid quaternion
-                    t = np.array([vio_sub.pose.position.x,
-                                  vio_sub.pose.position.y,
-                                  vio_sub.pose.position.z], dtype=np.float64)
+                if np.linalg.norm(quat) > 0 and odometry_msg != None: # check valid quaternion
+                    t = np.array([odometry_msg.position_x,
+                                  odometry_msg.position_y,
+                                  odometry_msg.position_z], dtype=np.float64)
                     r = R.from_quat(quat).as_matrix()
                     new_drone_pose = sp.SE3(r, t)
 
                     if window.first_odom:
                         window.first_odom = False
-                        window.init_odom_ts = vio_sub.header.stamp
+                        window.init_odom_ts = odometry_msg.ts
 
                     if window.prev_drone_pose is not None:
                         # compute axis angle of transfomation
@@ -1152,7 +1220,9 @@ def read_img(window):
                     continue
 
                 # expand floor dynamically
-                if (abs(vio_sub.pose.position.x) > window.floor_width / 2 or abs(vio_sub.pose.position.y) > window.floor_height / 2):
+                if (odometry_msg != None and (
+                    abs(odometry_msg.position_x) > window.floor_width / 2 or
+                    abs(odometry_msg.position_y) > window.floor_height / 2)):
                     line_mat = rendering.MaterialRecord()
                     line_mat.shader = "unlitLine"
                     line_mat.line_width = 2
@@ -1160,8 +1230,8 @@ def read_img(window):
                     window.widget3d.scene.remove_geometry("floor_grid")
                     window.widget3d.scene.remove_geometry("floor")
 
-                    width = 2 * max(vio_sub.pose.position.x, window.floor_width)
-                    height = 2 * max(vio_sub.pose.position.y, window.floor_height)
+                    width = 2 * max(odometry_msg.position_x, window.floor_width)
+                    height = 2 * max(odometry_msg.position_y, window.floor_height)
 
                     window.floor_width = max(width, height)
                     window.floor_height = max(width, height)
@@ -1182,11 +1252,10 @@ def read_img(window):
                     file_last_time = time.monotonic()
                     f_position = open(f"./odom_data/position_{current_time}.csv", "a")
                     f_orientation = open(f"./odom_data/orientation_{current_time}.csv", "a")
-                    f_position.write(f"{file_last_time}, {vio_sub.position_x}, {vio_sub.position_y}, {vio_sub.position_z} \n")
+                    f_position.write(f"{file_last_time}, {odometry_msg.position_x}, {odometry_msg.position_y}, {odometry_msg.position_z} \n")
                     f_orientation.write(f"{file_last_time}, {x}, {y}, {z}, {w}\n")
                     f_position.close()
                     f_orientation.close()
-
 
                 # print("trans matrix", drone_transform)
                 current_x_coor = new_drone_pose.matrix()[0][3]
@@ -1202,9 +1271,9 @@ def read_img(window):
                 window.total_dist += norm
                 edge = np.array([[0, 1],], dtype = np.int32)
 
-                odom_jump_detected = abs(vio_sub.ts - window.last_odom_ts) > JUMP_THRESHOLD
-                window.last_odom_ts = vio_sub.ts
-                window.elapsed_time = vio_sub.ts - window.init_odom_ts
+                odom_jump_detected = abs(odometry_msg.ts - window.last_odom_ts) > JUMP_THRESHOLD
+                window.last_odom_ts = odometry_msg.ts
+                window.elapsed_time = odometry_msg.ts - window.init_odom_ts
                 if window.elapsed_time > 0:
                     window.total_dist_label.text = f"total dist = \n {window.total_dist:.2f} m"
                     window.average_speed_label.text = f"avg speed =  \n {window.total_dist / window.elapsed_time * 1e9:.3f} m/s"
@@ -1212,7 +1281,8 @@ def read_img(window):
                     window.average_exp.text = f"avg exp = \n" + "\n".join([f"{key.split('/')[-1]} : {value[0]:.2f}" for (key, value) in window.avg_exp.items()])
                     window.average_gain.text = f"avg exp = \n" + "\n".join([f"{key.split('/')[-1]} : {value[0]:.2f}" for (key, value) in window.avg_gain.items()])
                     if tag_found and window.total_dist > 0:
-                        window.tag_drift_label.text = f"tag drift = {window.tag_dist_drift / window.total_dist * 100:.2f} %"
+                        window.tag_drift_label.text = f"tag drift = {window.tag_dist_drift / window.total_dist * 100:.2f} % \n  \
+                                                        path drift = {window.path_dist_drift / window.total_dist * 100:.2f} %"
 
                 # draw the sub line
 
@@ -1225,7 +1295,7 @@ def read_img(window):
                 if norm < 0.01:
                     good = False
 
-                if vio_sub.ts < window.last_odom_ts:
+                if odometry_msg.ts < window.last_odom_ts:
                     good = False
                     print("ts regression")
 
@@ -1254,6 +1324,7 @@ def read_img(window):
                     # set axis pose
                     window.widget3d.scene.set_geometry_transform("drone", new_drone_pose.matrix())
 
+                # Path logic
                 path_msg = None
 
                 if path_sub is not None:
@@ -1268,21 +1339,23 @@ def read_img(window):
 
                     count = 0
                     last_odom = None
+                    first_path = path_msg.path[0]
                     path_points.append([
-                        path_msg.path[0].px, 
-                        path_msg.path[0].py, 
-                        path_msg.path[0].pz])
+                        first_path.px, 
+                        first_path.py, 
+                        first_path.pz])
 
                     for i in range(1, len(path_msg.path)):
-                        vertex = [path_msg.path[i].px,
-                                  path_msg.path[i].py,
-                                  path_msg.path[i].pz]
+                        temp_path = path_msg.path[i]
+                        vertex = [temp_path.px,
+                                  temp_path.py,
+                                  temp_path.pz]
                                                 
                         if np.linalg.norm(np.array(vertex) - np.array(path_points[-1])) > 0.1:
                             path_points.append(vertex)
                             path_lines.append([count, count + 1])
                             path_colors.append([0, 1, 0])
-                            last_odom = path_msg.path[i]
+                            last_odom = temp_path
                             count += 1
 
                     if count > 0:

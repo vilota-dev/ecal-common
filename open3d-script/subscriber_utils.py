@@ -20,6 +20,7 @@ from utils import SyncedImageSubscriber
 import time
 
 import queue
+from collections import namedtuple
 from threading import Lock
 
 class ImuSubscriber:
@@ -102,6 +103,16 @@ class AprilPathSubscriber:
             self.path_msg = pathMsg
             self.has_updated = True
 
+OdometryMsg = namedtuple("OdometryMsg", ["ts", 
+                                         "header",
+                                         "position_x", 
+                                         "position_y", 
+                                         "position_z", 
+                                         "orientation_x",
+                                         "orientation_y",
+                                         "orientation_z",
+                                         "orientation_w"])
+
 class VioSubscriber:
     def __init__(self, vio_topic):
 
@@ -111,19 +122,8 @@ class VioSubscriber:
 
         self.vio_callbacks = []
 
-        self.pose = None
         self.header = None
-
-        self.position_x = 0.0
-        self.position_y = 0.0
-        self.position_z = 0.0
-
-        self.orientation_x = 0.0
-        self.orientation_y = 0.0
-        self.orientation_z = 0.0
-        self.orientation_w = 0.0
-
-        self.ts = 0.0
+        self.odometry_msg = None
 
     def register_callback(self, cb):
         self.vio_callbacks.append(cb)
@@ -133,21 +133,18 @@ class VioSubscriber:
                 
         with eCALOdometry3d.Odometry3d.from_bytes(msg) as odometryMsg:
 
-            # for cb in self.vio_callbacks:
-            #     cb("capnp:Odometry3D", topic_name, odometryMsg, time_ecal)
+            self.odometry_msg = OdometryMsg(ts=odometryMsg.header.stamp,
+                                            header=odometryMsg.header,
+                                            position_x=odometryMsg.pose.position.x,
+                                            position_y=odometryMsg.pose.position.y,
+                                            position_z=odometryMsg.pose.position.z,
+                                            orientation_x=odometryMsg.pose.orientation.x,
+                                            orientation_y=odometryMsg.pose.orientation.y,
+                                            orientation_z=odometryMsg.pose.orientation.z,
+                                            orientation_w=odometryMsg.pose.orientation.w)
 
-            # read in data
-            self.pose = odometryMsg.pose
-            self.ts = odometryMsg.header.stamp
-
-            self.position_x = odometryMsg.pose.position.x
-            self.position_y = odometryMsg.pose.position.y
-            self.position_z = odometryMsg.pose.position.z
-
-            self.orientation_x = odometryMsg.pose.orientation.x
-            self.orientation_y = odometryMsg.pose.orientation.y
-            self.orientation_z = odometryMsg.pose.orientation.z
-            self.orientation_w = odometryMsg.pose.orientation.w
+            for cb in self.vio_callbacks:
+                cb("capnp:Odometry3D", topic_name, self.odometry_msg, time_ecal)
 
             # text
             self.header = odometryMsg.header
