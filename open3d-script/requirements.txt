@@ -1,0 +1,9 @@
+ecal5==5.11.4
+moms_apriltag==2023.1.15
+numpy==1.25.0
+open3d==0.17.0
+Pillow==10.0.0
+pycapnp==1.3.0
+scipy==1.8.0
+sophuspy==0.0.8
+trimesh==3.22.5
