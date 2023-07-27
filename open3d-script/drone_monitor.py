@@ -458,6 +458,9 @@ class VideoWindow:
         self.tag_drift_label.font_id = self.font_id_large
         stats_tab.add_child(self.tag_drift_label)
 
+        self.april_odom = gui.Label("April odom")
+        stats_tab.add_child(self.april_odom)
+
         # message show
         label_info = gui.Label("Vio Information")
         label_info.text_color = gui.Color(1.0, 0.5, 0.0)
@@ -965,7 +968,7 @@ def read_img(window):
 
     # set up tag detection subscribers
 
-    vio_topic = "S0/vio_odom" if flag_dict['vio_status'] else None
+    vio_topic = "S0/april_odom" if flag_dict['vio_status'] else None
     tag_sub = { "cama": TagDetectionsSubscriber("S0/tags/cama"),
                 "camb": TagDetectionsSubscriber("S0/tags/camb"),
                 "camc": TagDetectionsSubscriber("S0/tags/camc"),
@@ -1323,6 +1326,9 @@ def read_img(window):
                     
                     # set axis pose
                     window.widget3d.scene.set_geometry_transform("drone", new_drone_pose.matrix())
+
+                if loop_vio_sub.odometry_msg != None:
+                    window.april_odom.text = loop_vio_sub.vio_msg
 
                 # Path logic
                 path_msg = None
