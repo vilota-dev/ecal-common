@@ -8,6 +8,7 @@ struct Landmark {
     id @0 :UInt32;    
     size @1 :Float32;
     pose @2 :import "se3.capnp".Se3;
+    covariance @3 :import "vector3.capnp".Vector3d; # TODO make more general
 }
 
 struct Landmarks {
