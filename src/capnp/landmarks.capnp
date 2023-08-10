@@ -9,7 +9,7 @@ struct Landmark {
     size @1 :Float32;
     pose @2 :import "se3.capnp".Se3;
     covPose @3 :import "se3.capnp".Se3; 
-    covScale @3 :import "vector3.capnp".Vector3d;
+    covScale @4 :import "vector3.capnp".Vector3d;
 }
 
 struct Landmarks {
