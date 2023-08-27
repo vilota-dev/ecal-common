@@ -968,7 +968,7 @@ def read_img(window):
 
     # set up tag detection subscribers
 
-    vio_topic = "S0/april_odom" if flag_dict['vio_status'] else None
+    vio_topic = "S0/vio_odom" if flag_dict['vio_status'] else None
     tag_sub = { "cama": TagDetectionsSubscriber("S0/tags/cama"),
                 "camb": TagDetectionsSubscriber("S0/tags/camb"),
                 "camc": TagDetectionsSubscriber("S0/tags/camc"),
