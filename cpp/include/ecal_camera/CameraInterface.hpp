@@ -229,7 +229,7 @@ struct CameraParams {
     std::string ecal_process_name = "camimu interface cpp";
 
     std::vector<std::string> idxTopicMap; // being populated, without prefix
-    std::map<std::string, uint16_t> topicIdxMap; // being populated, without prefix
+    // std::map<std::string, uint16_t> topicIdxMap; // being populated, without prefix
 
     std::string product_name;
 };

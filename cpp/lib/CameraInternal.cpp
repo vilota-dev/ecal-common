@@ -39,7 +39,7 @@ void CameraInternal::init(const CameraParams &params) {
         m_imageSubMap.emplace(topic, prefixed_topic);
         m_imageSubMap.at(topic).AddReceiveCallback(callback);
         m_params.idxTopicMap.push_back(topic);
-        m_params.topicIdxMap[topic] = idx;
+        // m_params.topicIdxMap[topic] = idx;
 
         idx++;
     }
