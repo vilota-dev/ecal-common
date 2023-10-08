@@ -11,30 +11,34 @@ from capnp_subscriber import CapnpSubscriber
 
 capnp.add_import_hook(['../src/capnp'])
 
-import imu_capnp as eCALImu
+import imulist_capnp as eCALImuList
 
 first_message = True
+curr_seq = 0
 
 def callback(type, topic_name, msg, time):
 
     global first_message
+    global curr_seq
 
     # need to remove the .decode() function within the Python API of ecal.core.subscriber ByteSubscriber
     
-    with eCALImu.Imu.from_bytes(msg) as imuMsg:
-        print(f"seq = {imuMsg.header.seq}")
-        print(f"latency device = {imuMsg.header.latencyDevice / 1e6} ms")
-        print(f"latency host = {imuMsg.header.latencyHost / 1e6} ms")
-        accel = np.array([imuMsg.linearAcceleration.x, imuMsg.linearAcceleration.y, imuMsg.linearAcceleration.z])
-        gyro = np.array([imuMsg.angularVelocity.x, imuMsg.angularVelocity.y, imuMsg.angularVelocity.z])
-        print(f"accel = {accel}")
-        print(f"gyro = {gyro}")
-
+    with eCALImuList.ImuList.from_bytes(msg) as imuListMsg:
         if first_message:
-            print(f"extrinsic = {imuMsg.extrinsic}")
-            print(f"time_offset_ns = {imuMsg.intrinsic.timeOffsetNs}")
-            print(f"update_rate = {imuMsg.intrinsic.updateRate}")
+            print(f"extrinsic = {imuListMsg.list[0].extrinsic}")
+            print(f"time_offset_ns = {imuListMsg.list[0].intrinsic.timeOffsetNs}")
+            print(f"update_rate = {imuListMsg.list[0].intrinsic.updateRate}")
             first_message = False
+
+        for imuMsg in imuListMsg.list:
+            header = imuMsg.header
+            print(f"seq = {header.seq}")
+            print(f"latency device = {header.latencyDevice / 1e6} ms")
+            print(f"latency host = {header.latencyHost / 1e6} ms")
+            accel = np.array([imuMsg.linearAcceleration.x, imuMsg.linearAcceleration.y, imuMsg.linearAcceleration.z])
+            gyro = np.array([imuMsg.angularVelocity.x, imuMsg.angularVelocity.y, imuMsg.angularVelocity.z])
+            print(f"accel = {accel}")
+            print(f"gyro = {gyro}")
 
 def main():  
 
