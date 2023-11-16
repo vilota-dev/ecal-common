@@ -27,6 +27,12 @@ with dai.Device() as device:
         x = pipeline.create(dai.node.XLinkOut)
         c.out.link(x.input)
         c.setBoardSocket(cam.socket)
+
+        # workaround for monochrom AR0234
+        if cam.sensorName == "AR0234":
+            c.initialControl.setLumaDenoise(0)
+            c.initialControl.setSharpness(0)
+
         stream = str(cam.socket)
         # if cam.name:
         stream = f'{cam.name} ({stream}) [{cam.sensorName}]'
