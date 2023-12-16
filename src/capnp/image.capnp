@@ -31,4 +31,5 @@ struct Image {
     intrinsic @10 :import "cameraintrinsic.capnp".CameraIntrinsic;
     extrinsic @11 :import "sensorextrinsic.capnp".SensorExtrinsic;
 
+    mipMapLevels @12 :UInt8; # 0 means original image, and so on
 }
