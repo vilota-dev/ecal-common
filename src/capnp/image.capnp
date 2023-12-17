@@ -32,4 +32,6 @@ struct Image {
     extrinsic @11 :import "sensorextrinsic.capnp".SensorExtrinsic;
 
     mipMapLevels @12 :UInt8; # 0 means original image, and so on
+    mipMapBrightness @13 :UInt8; # calculated from the smallest available mipmap
+    mipMapBrightnessChange @14 :Float32; # change of brightness against rolling average, offset by exp and gain changes
 }

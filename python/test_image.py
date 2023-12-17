@@ -16,6 +16,21 @@ import image_capnp as eCALImage
 
 imshow_map = {}
 
+def addStats(image, imageMsg):
+    brightness = imageMsg.mipMapBrightness
+    brightnessChange = imageMsg.mipMapBrightnessChange
+
+    # Define the text and font properties
+    text = f"b: {brightness} c:{brightnessChange:.2f}"
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.5
+    font_thickness = 1
+    font_color = (255, 255, 255)  # White color
+
+    text_position = (10, 30)
+    cv2.putText(image, text, text_position, font, font_scale, font_color, font_thickness)
+
+
 def callback(type, topic_name, msg, ts):
 
     # need to remove the .decode() function within the Python API of ecal.core.subscriber StringSubscriber
@@ -32,6 +47,8 @@ def callback(type, topic_name, msg, ts):
 
             mat = np.frombuffer(imageMsg.data, dtype=np.uint8)
             mat = mat.reshape((imageMsg.height, imageMsg.width, 1))
+
+            addStats(mat, imageMsg)
 
             imshow_map[topic_name + " mono8"] = mat
 
