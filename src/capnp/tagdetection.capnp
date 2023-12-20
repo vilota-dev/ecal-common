@@ -6,13 +6,6 @@ $Cxx.namespace("ecal");
 # Tag Detection shall encode image as well for debugging purpose, and could be switched off when desired
 # This is due to the fact that detection may run at a lower frequency
 
-struct FourPoints {
-    pt1 @0 :import "vector2.capnp".Vector2f; # bottom-left
-    pt2 @1 :import "vector2.capnp".Vector2f; # bottom-right
-    pt3 @2 :import "vector2.capnp".Vector2f; # top-right
-    pt4 @3 :import "vector2.capnp".Vector2f; # top-left
-}
-
 enum TagFamily {
     tag16h5 @0;
     tag25h7 @1;
@@ -34,6 +27,7 @@ struct AprilGrid {
     tagRows @4 :UInt8;
     tagSpacing @5 :Float32;
     tagSize @6 :Float32;
+    gridId @7 :UInt64; # generated unique hash
 }
 
 # Tag could possibly belong to a known grid; grid will have size info
@@ -42,8 +36,8 @@ struct TagDetection {
     family @1 :TagFamily;
     hammingDistance @2 :UInt8;
     # corners
-    pointsPolygon @3 :FourPoints; # 0~1 should be stored, instead of pixel value
-    gridId @4 :Int32; # negative value indicate a stray tag without a known grid
+    pointsPolygon @3 :List(Float32); # 0~1 should be stored, instead of pixel value
+    gridId @4 :UInt64; # should be a hash, zero means no grid associated
 }
 
 struct TagDetections {

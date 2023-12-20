@@ -11,6 +11,9 @@ struct Image {
         yuv420 @2;
         bgr8 @3;
         jpeg @4;
+        png @5;
+        h264 @6;
+        h265 @7;
     }
 
     header @0 :import "header.capnp".Header;
