@@ -7,6 +7,7 @@ struct MotionMeta {
     instantaneousAngularVelocity @0 :import "vector3.capnp".Vector3d; # timestamp at middle of exposure
     averageAngularVelocity @1 :import "vector3.capnp".Vector3d; # average from mid-exposre of previous frame to the current
     shockLikelihood @2 :Float32; # from previous frame to current frame
+    deltaUs @3 :Float32; # mid-exposure from previous frame
 }
 
 struct Image {
