@@ -2,16 +2,21 @@
 
 import sys
 import time
+import struct
+import array
+from collections import deque
 
 # capnp
 import capnp
 from utils import SyncedImageSubscriber
 import ecal.core.core as ecal_core
+from capnp_publisher import CapnpPublisher
 
-capnp.add_import_hook(['../src/capnp'])
+capnp.add_import_hook(['../thirdparty/vk_common/capnp'])
 
 import odometry3d_capnp as eCALOdometry3d
 import tagdetection_capnp as eCALTagDetections
+import pointcloud_capnp as eCALPointCloud
 
 # symforce deps
 import symforce
@@ -29,12 +34,17 @@ import numpy as np
 import rerun as rr
 
 # global
-optimized = False
+seq = 0
+pub = None
+min_pose_count = 7
+min_tag_obs_count = 5
 
-min_pose_count = 10
-min_tag_count = 1
+images = [] # not used
 
-images = []
+# tag_id -> count
+tag_counts = {}
+# tag messages
+buffer = deque(maxlen=100)
 
 poses = []
 in_between_Ts = []
@@ -191,6 +201,14 @@ def build_factors():
     #         keys=[f"all_tags[{i}]", f"all_tags[{i+1}]", f"all_tags[{i+2}]", f"all_tags[{i+3}]", "epsilon"],
     #     )
 
+def sym_pose_to_pose(odom):
+    t = odom.position()
+    q = odom.rotation().data
+
+    rot = sf.Rot3(q=sf.Quaternion(sf.V3(q[0], q[1], q[2]), q[3]))
+    pos = sf.V3(t[0], t[1], t[2])
+    return sf.Pose3(rot, pos)
+
 def viz(optimizer: Optimizer, result: Optimizer.Result):
     rr.init("vk_viewer_rr")
     rr.spawn(memory_limit='10%')
@@ -244,17 +262,9 @@ def viz(optimizer: Optimizer, result: Optimizer.Result):
             rr.set_time_nanos("host_monotonic_time", ts)
             rr.log(f"S0/tag_image_iter_{iter_idx}", rr.DisconnectedSpace())
 
-            odom_T_body = poses[msg_idx]
-            tmp_odom = sf.Pose3.symbolic("tmp_odom")
-
-            pos = odom_T_body.position()
-            rot = odom_T_body.rotation().data
-            qx, qy, qz, qw = rot[0], rot[1], rot[2], rot[3]
-            x, y, z, = pos[0], pos[1], pos[2]
-
-            odom_T_body = sf.Pose3(sf.Rot3(sf.Quaternion(sf.V3(qx, qy, qz), qw)), sf.V3(x, y, z))
-
-            mat = mat.copy() #idontcare
+            odom_T_body = sym_pose_to_pose(poses[msg_idx])
+            
+            mat = mat.copy()
             for point in all_tags:
                 point = sf.V3(point[0], point[1], point[2])
                 uv = project_to_image(point, odom_T_body, sf.numeric_epsilon)
@@ -273,6 +283,8 @@ def viz(optimizer: Optimizer, result: Optimizer.Result):
         iter_idx += 1
 
 def optimize():
+    global seq, pub
+
     # Create a problem setup and initial guess
     initial_values = build_inital_values()
 
@@ -293,8 +305,8 @@ def optimize():
 
     # Solve and return the result
     result = optimizer.optimize(initial_values)
-    viz(optimizer, result)
-    
+    # viz(optimizer, result) # out of order
+
     # Print values
     print(f"Num iterations: {len(result.iterations) - 1}")
     print(f"Final error: {result.error():.6f}")
@@ -304,24 +316,92 @@ def optimize():
     for i, tag in enumerate(result.optimized_values["all_tags"]):
         print(f"Tag {i}: {tag}")
 
-# read data
-def callback(msg, _):
-    global optimized, poses, in_between_Ts, pose_tag_corners, all_tag_corners, tags, all_tags, intrinsics
+    # publish pointcloud
+    odom_idx = 0
 
-    if optimized:
-        return
-    
-    print(len(poses), len(tags))
+    for msg in buffer:
+        points = []
 
-    if len(poses) >= min_pose_count and len(tags) >= min_tag_count:
-        optimized = True
-        print("Optimizing...")
-        optimize()
-        print("Done")
-        return
+        odom = result.optimized_values["poses"][odom_idx]
+        odom_pose = sym_pose_to_pose(odom)
+        odom_inv = odom_pose.inverse()
+
+        for tag in msg["S0/camd/tags"].tags:
+            tag_id = tag.id
+            if tag_id not in tags:
+                continue
+            tag_idx = tags[tag_id]
+
+            for i in range(4):
+                coords = result.optimized_values["all_tags"][tag_idx + i]
+                coords = odom_inv * sf.V3(coords[0], coords[1], coords[2])
+                
+                points.append(coords[0])
+                points.append(coords[1])
+                points.append(coords[2])
+        odom_idx += 1
+
+        pcl_msg = eCALPointCloud.PointCloud.new_message()
+        pose = msg["S0/vio_odom"]
+
+        # Header:
+        pcl_msg.header = pose.header
+        pcl_msg.header.seq = seq
+        seq += 1
+
+        # Pose:
+        pcl_msg.pose = pose
+
+        # Stride:
+        pcl_msg.pointStride = 12
+        
+        # Fields: x, y, z
+        field_names = ["x", "y", "z"]
+        fields = pcl_msg.init("fields", 3)
+        for i in range(3):
+            field = fields[i]
+            field.name = field_names[i]
+            field.type = "float32"
+            field.offset = i * 4
+
+        # Points: (convert float32 list to bytes)
+        pcl_msg.points = np.array(points, dtype=np.float32).tobytes()
+
+        # Publish:
+        pub.send(pcl_msg.to_bytes())
+
+def register_msg(msg):
+    global tag_counts, buffer
+
+    if (len(buffer) == buffer.maxlen):
+        remove_msg(buffer.popleft())
     
-    t_temp = msg["S0/tags/camd"]
+    buffer.append(msg)
+
+    t_temp = msg["S0/camd/tags"]
     tags_msg = t_temp.tags
+    for tag in tags_msg:
+        if tag.id not in tag_counts:
+            tag_counts[tag.id] = 0
+        
+        tag_counts[tag.id] += 1
+
+def remove_msg(msg):
+    global tag_counts
+
+    print("buffer full, removing msg...")
+    t_temp = msg["S0/camd/tags"]
+    tags_msg = t_temp.tags
+    for tag in tags_msg:
+        tag_counts[tag.id] -= 1
+
+def process_msg(msg, optimizing_tag_ids):
+    global poses, in_between_Ts, pose_tag_corners, all_tag_corners, tags, all_tags, intrinsics
+
+    t_temp = msg["S0/camd/tags"]
+    tags_msg = t_temp.tags
+    image_width = t_temp.image.width
+    image_height = t_temp.image.height
     odom = msg["S0/vio_odom"].pose
 
     # TODO: gravity align to 2d
@@ -332,7 +412,7 @@ def callback(msg, _):
     pos = sf.V3(t.x, t.y, t.z)
     odom_pose = sf.Pose3(rot, pos)
 
-    print(odom_pose)
+    msg["odom_sf"] = odom_pose
 
     # image intrinsics
     if intrinsics is None:
@@ -340,28 +420,19 @@ def callback(msg, _):
         pinhole = kb4.pinhole
         intrinsics = (pinhole.fx, pinhole.fy, pinhole.cx, pinhole.cy, kb4.k1, kb4.k2, kb4.k3, kb4.k4)
 
-    images.append(t_temp.image)
-
-    # legacy tag detection msg
     tag_pairs = {}
+
     for tag in tags_msg:
-        p = tag.poseInCameraFrame.position
-        tq = tag.poseInCameraFrame.orientation
+        if tag.id not in optimizing_tag_ids:
+            continue
 
-        odom_T_tag = odom_pose * nwu_T_edn * sf.Pose3(
-            sf.Rot3(q=sf.Quaternion(sf.V3(tq.x, 
-                                          tq.y, 
-                                          tq.z), tq.w)), 
-            sf.V3(p.x, p.y, p.z))
-
-        tx, ty, tz = odom_T_tag.position().x , odom_T_tag.position().y, odom_T_tag.position().z
-        print(f"Tag {tag.id}: {tx}, {ty}, {tz}")
-
-        pts = tag.pointsPolygon
         corners = []
+        points = tag.pointsPolygon
 
-        for point in [pts.pt1, pts.pt2, pts.pt3, pts.pt4]:
-            corners.append(sf.V2(point.x, point.y))
+        for point in range(4):
+            x = points[2*point] * image_width
+            y = points[2*point + 1] * image_height
+            corners.append(sf.V2(x, y))
 
         tag_pairs[tag.id] = len(all_tag_corners)
         all_tag_corners += corners
@@ -380,9 +451,53 @@ def callback(msg, _):
     pose_tag_corners.append(tag_pairs)
     poses.append(odom_pose)
 
-    print("------------------")
+# read data
+def callback(msg, _):
+    global poses, in_between_Ts, pose_tag_corners, all_tag_corners, tags, all_tags, intrinsics
+    
+    print(f"buffer size = {len(buffer)}")
+
+    optimizing_tag_ids = set()
+    optimizing = False
+
+    if len(buffer) > min_pose_count:
+        for tag_id in tag_counts:
+            # need at least min tag observations of some tag
+            # to optimize 
+            if tag_counts[tag_id] >= min_tag_obs_count:
+                optimizing_tag_ids.add(tag_id)
+                optimizing = True
+
+    if optimizing:
+        tag_counts.clear()
+
+        for msg in buffer:
+            process_msg(msg, optimizing_tag_ids)
+
+        print("Optimizing...")
+        print("num poses =", len(poses))
+        print("num in between Ts =", len(in_between_Ts))
+        print("num tags =", len(all_tags))
+        optimize()
+
+        print("Optimzation done! Resetting data...")
+        buffer.clear()
+        poses.clear()
+        in_between_Ts.clear()
+        pose_tag_corners.clear()
+        all_tag_corners.clear()
+        tags.clear()
+        all_tags.clear()
+        intrinsics = None
+
+    # add new msg to buffer
+    register_msg(msg)
+    print(tag_counts)
+    print ("------------------")
 
 def main():
+    global pub
+
     # print eCAL version and date
     print("eCAL {} ({})\n".format(ecal_core.getversion(), ecal_core.getdate()))
     
@@ -393,11 +508,13 @@ def main():
     ecal_core.set_process_state(1, 1, "I feel good")
 
     types = ["TagDetections", "Odometry3d"]
-    topics = ["S0/tags/camd", "S0/vio_odom"]
+    topics = ["S0/camd/tags", "S0/vio_odom"]
     classes = [eCALTagDetections.TagDetections, eCALOdometry3d.Odometry3d]
 
     sub = SyncedImageSubscriber(types, topics, classes)
     sub.register_callback(callback)
+
+    pub = CapnpPublisher("S0/tag_pcl", "Pointcloud")
     
     # idle main thread
     while ecal_core.ok():

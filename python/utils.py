@@ -5,7 +5,7 @@ import cv2
 import ecal.core.core as ecal_core
 from capnp_subscriber import CapnpSubscriber
 
-capnp.add_import_hook(['../src/capnp'])
+capnp.add_import_hook(['../thirdparty/vk_common/capnp'])
 
 import imu_capnp as eCALImu
 

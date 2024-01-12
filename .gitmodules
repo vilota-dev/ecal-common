@@ -1,0 +1,3 @@
+[submodule "thirdparty/vk_common"]
+	path = thirdparty/vk_common
+	url = https://github.com/vilota-dev/vk_common.git
