@@ -316,6 +316,10 @@ def optimize():
     for i, tag in enumerate(result.optimized_values["all_tags"]):
         print(f"Tag {i}: {tag}")
 
+    if result.status != Optimizer.Status.SUCCESS:
+        print("Optimization failed!... skipping publish")
+        return
+
     # publish pointcloud
     odom_idx = 0
 
@@ -326,6 +330,7 @@ def optimize():
         odom_pose = sym_pose_to_pose(odom)
         odom_inv = odom_pose.inverse()
 
+        num_tags = len(msg["S0/camd/tags"].tags)
         for tag in msg["S0/camd/tags"].tags:
             tag_id = tag.id
             if tag_id not in tags:
@@ -336,9 +341,7 @@ def optimize():
                 coords = result.optimized_values["all_tags"][tag_idx + i]
                 coords = odom_inv * sf.V3(coords[0], coords[1], coords[2])
                 
-                points.append(coords[0])
-                points.append(coords[1])
-                points.append(coords[2])
+                points.append((coords[0], coords[1], coords[2], tag_id, i))
         odom_idx += 1
 
         pcl_msg = eCALPointCloud.PointCloud.new_message()
@@ -364,8 +367,11 @@ def optimize():
             field.type = "float32"
             field.offset = i * 4
 
-        # Points: (convert float32 list to bytes)
-        pcl_msg.points = np.array(points, dtype=np.float32).tobytes()
+        # Points: float (x), float(y), float(z), uint_8 (tag_id), uint_8 (corner_id)
+        packed_data = b''
+        for data in points:
+            packed_data += struct.pack(f"<fffBB", *data)
+        pcl_msg.points = packed_data
 
         # Publish:
         pub.send(pcl_msg.to_bytes())

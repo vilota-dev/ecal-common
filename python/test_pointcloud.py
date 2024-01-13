@@ -16,7 +16,9 @@ capnp.add_import_hook(['../thirdparty/vk_common/capnp'])
 import pointcloud_capnp as eCALPointCloud
 
 def callback(type, topic_name, msg, ts):
-    arr = np.frombuffer(msg.points, dtype=np.float32)
+    data = msg.points
+
+    arr = [struct.unpack('fffBB', data[i:i+struct.calcsize('fffBB')]) for i in range(0, len(data), struct.calcsize('fffBB'))]
 
     print (arr)
     print("===================================")
