@@ -3,7 +3,6 @@
 import sys
 import time
 import struct
-import array
 from collections import deque
 
 # capnp
@@ -359,13 +358,18 @@ def optimize():
         pcl_msg.pointStride = 12
         
         # Fields: x, y, z
-        field_names = ["x", "y", "z"]
-        fields = pcl_msg.init("fields", 3)
-        for i in range(3):
+        field_names = ["x", "y", "z", "tag_id", "corner_id"]
+        field_types = ["float32", "float32", "float32", "uint8", "uint8"]
+        field_sizes = [4, 4, 4, 1, 1]
+        assert len(field_names) == len(field_types) == len(field_sizes)
+        offset = 0
+        fields = pcl_msg.init("fields", 5)
+        for i in range(len(field_names)):
             field = fields[i]
             field.name = field_names[i]
-            field.type = "float32"
-            field.offset = i * 4
+            field.type = field_types[i]
+            field.offset = offset
+            offset += field_sizes[i]
 
         # Points: float (x), float(y), float(z), uint_8 (tag_id), uint_8 (corner_id)
         packed_data = b''
