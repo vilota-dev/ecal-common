@@ -56,6 +56,7 @@ tags = {}
 # [ corners v3 ]
 all_tags = []
 intrinsics = None
+body_T_cam = None
 diagonal_sigmas = sf.V6(0.05, 0.05, 0.05, 0.1, 0.1, 0.1)
 
 nwu_T_edn = sf.Pose3(
@@ -100,8 +101,8 @@ def build_inital_values():
     )
 
 def project_to_image(point: sf.V3, odom_T_body: sf.Pose3, epsilon: sf.Scalar):
-    odom_T_body_edn = odom_T_body * nwu_T_edn
-    point_body = odom_T_body_edn.inverse() * point
+    odom_T_cam_edn = odom_T_body * body_T_cam * nwu_T_edn
+    point_body = odom_T_cam_edn.inverse() * point
 
     x, y, z = point_body[0], point_body[1], point_body[2]
     fx, fy, cx, cy, k1, k2, k3, k4 = intrinsics
@@ -406,23 +407,13 @@ def remove_msg(msg):
         tag_counts[tag.id] -= 1
 
 def process_msg(msg, optimizing_tag_ids):
-    global poses, in_between_Ts, pose_tag_corners, all_tag_corners, tags, all_tags, intrinsics
+    global poses, in_between_Ts, pose_tag_corners, all_tag_corners, tags, all_tags, intrinsics, body_T_cam
 
     t_temp = msg["S0/camd/tags"]
+
     tags_msg = t_temp.tags
     image_width = t_temp.image.width
     image_height = t_temp.image.height
-    odom = msg["S0/vio_odom"].pose
-
-    # TODO: gravity align to 2d
-    t = odom.position
-    q = odom.orientation
-
-    rot = sf.Rot3(q=sf.Quaternion(sf.V3(q.x, q.y, q.z), q.w))
-    pos = sf.V3(t.x, t.y, t.z)
-    odom_pose = sf.Pose3(rot, pos)
-
-    msg["odom_sf"] = odom_pose
 
     # image intrinsics
     if intrinsics is None:
@@ -430,8 +421,26 @@ def process_msg(msg, optimizing_tag_ids):
         pinhole = kb4.pinhole
         intrinsics = (pinhole.fx, pinhole.fy, pinhole.cx, pinhole.cy, kb4.k1, kb4.k2, kb4.k3, kb4.k4)
 
-    tag_pairs = {}
+    # image extrinsics
+    if body_T_cam is None:
+        b_t_c = t_temp.image.extrinsic.bodyFrame
+        b_T_c_t = b_t_c.position
+        b_T_c_q = b_t_c.orientation
+        body_T_cam = sf.Pose3(
+            sf.Rot3(q=sf.Quaternion(sf.V3(b_T_c_q.x, b_T_c_q.y, b_T_c_q.z), b_T_c_q.w)), 
+            sf.V3(b_T_c_t.x, b_T_c_t.y, b_T_c_t.z))
+    
+    odom = msg["S0/vio_odom"].pose
+    t = odom.position
+    q = odom.orientation
 
+    rot = sf.Rot3(q=sf.Quaternion(sf.V3(q.x, q.y, q.z), q.w))
+    pos = sf.V3(t.x, t.y, t.z)
+    odom_T_body = sf.Pose3(rot, pos)
+
+    msg["odom_sf"] = odom_T_body
+
+    tag_pairs = {}
     for tag in tags_msg:
         if tag.id not in optimizing_tag_ids:
             continue
@@ -456,10 +465,10 @@ def process_msg(msg, optimizing_tag_ids):
 
     if len(poses) > 0:
         prev_pose = poses[-1]
-        in_between_Ts.append(prev_pose.inverse() * odom_pose)
+        in_between_Ts.append(prev_pose.inverse() * odom_T_body)
 
     pose_tag_corners.append(tag_pairs)
-    poses.append(odom_pose)
+    poses.append(odom_T_body)
 
 # read data
 def callback(msg, _):
@@ -517,14 +526,24 @@ def main():
     # set process state
     ecal_core.set_process_state(1, 1, "I feel good")
 
+    # get cli arg
+    n = len(sys.argv)
+    if n == 1:
+        tag_topic = "S0/camd/tags"
+    elif n == 2:
+        tag_topic = sys.argv[1]
+    else:
+        raise RuntimeError("Need to pass in exactly one parameter for topic")
+
+
     types = ["TagDetections", "Odometry3d"]
-    topics = ["S0/camd/tags", "S0/vio_odom"]
+    topics = [tag_topic, "S0/vio_odom"]
     classes = [eCALTagDetections.TagDetections, eCALOdometry3d.Odometry3d]
 
     sub = SyncedImageSubscriber(types, topics, classes)
     sub.register_callback(callback)
 
-    pub = CapnpPublisher("S0/tag_pcl", "Pointcloud")
+    pub = CapnpPublisher(tag_topic+"/points", "Pointcloud")
     
     # idle main thread
     while ecal_core.ok():
