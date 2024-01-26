@@ -2,6 +2,7 @@
 
 #include <iostream>
 
+#include <opencv2/opencv.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 // #include <opencv2/highgui/highgui.hpp> // for debugging
 
@@ -291,6 +292,11 @@ void CameraInternal::cameraCallbackInternal(const char* ecal_topic_name, ecal::I
             }else
                 msg->image = rawImg;
                 // cv::cvtColor(rawImg, msg->image, cv::COLOR_YUV2BGR_IYUV);
+        }else if (ecal_msg.getEncoding() == ecal::Image::Encoding::JPEG) {
+            msg->encoding = "mono8";
+            cv::Mat mat_jpeg(1, ecal_msg.getData().size(), CV_8UC1,
+                                const_cast<unsigned char*>(ecal_msg.getData().asBytes().begin()));
+            msg->image = cv::imdecode(mat_jpeg, cv::IMREAD_GRAYSCALE);
         }else{
             throw std::runtime_error("not implemented encoding");
         }
