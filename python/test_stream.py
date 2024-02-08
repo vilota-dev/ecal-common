@@ -16,7 +16,6 @@ import image_capnp as eCALImage
 
 imshow_map = {}
 
-
 def addStats(image, imageMsg):
     brightness = imageMsg.mipMapBrightness
     brightnessChange = imageMsg.mipMapBrightnessChange
@@ -29,16 +28,14 @@ def addStats(image, imageMsg):
     font_color = (255, 255, 255)  # White color
 
     text_position = (10, 30)
-
-
 #    cv2.putText(image, text, text_position, font, font_scale, font_color, font_thickness)
 
 
 def callback(type, topic_name, msg, ts):
+
     # need to remove the .decode() function within the Python API of ecal.core.subscriber StringSubscriber
     with eCALImage.Image.from_bytes(msg) as imageMsg:
-        print(
-            f"seq = {imageMsg.header.seq}, stamp = {imageMsg.header.stamp}, with {len(msg)} bytes, encoding = {imageMsg.encoding}")
+        print(f"seq = {imageMsg.header.seq}, stamp = {imageMsg.header.stamp}, with {len(msg)} bytes, encoding = {imageMsg.encoding}")
         # print(f"latency device = {imageMsg.header.latencyDevice / 1e6} ms")
         # print(f"latency host = {imageMsg.header.latencyHost / 1e6} ms")
         print(f"width = {imageMsg.width}, height = {imageMsg.height}")
@@ -74,37 +71,35 @@ def callback(type, topic_name, msg, ts):
             imshow_map[topic_name + " bgr8"] = mat
         elif (imageMsg.encoding == "jpeg"):
             mat_jpeg = np.frombuffer(imageMsg.data, dtype=np.uint8)
-            mat = cv2.imdecode(mat_jpeg, cv2.IMREAD_GRAYSCALE)
+            mat = cv2.imdecode(mat_jpeg, cv2.IMREAD_COLOR)
             imshow_map[topic_name + " jpeg"] = mat
         else:
             raise RuntimeError("unknown encoding: " + imageMsg.encoding)
 
 
-def main():
+def main():  
     # mat = np.ones((800,1280,1), dtype=np.uint8) * 125
     # cv2.imshow("mono8", mat)
     # cv2.imwrite("test0.jpg", mat)
 
     # print eCAL version and date
     print("eCAL {} ({})\n".format(ecal_core.getversion(), ecal_core.getdate()))
-
+    
     # initialize eCAL API
     ecal_core.initialize(sys.argv, "test_image_sub")
-
+    
     # set process state
     ecal_core.set_process_state(1, 1, "I feel good")
 
     # create subscriber and connect callback
 
     n = len(sys.argv)
-    topic_string=""
     if n == 1:
         topics = ["S0/camd"]
     elif n >= 2:
         topics = []
         for i in range(1, n):
             topics.append(sys.argv[i])
-            topic_string += sys.argv[i]+" "
             print(f"topic {i} = {topics[-1]}")
     else:
         raise RuntimeError("Need to pass in exactly one parameter for topic")
@@ -114,38 +109,18 @@ def main():
         sub = CapnpSubscriber("Image", topic)
         sub.set_callback(callback)
         subs.append(sub)
-
-    time.sleep(2)
+    
     # idle main thread
     while ecal_core.ok():
-        im_maps = []
-
-        scale_percent = 100 #int(sys.argv[1])  # percent of original size
-        width = int(1280 * scale_percent / 100)  # im.shape[1]
-        height = int(800 * scale_percent / 100)  # im.shape[0]
-        dim = (width, height) #(1280, 800)
-
-        for im in imshow_map:
-            # resize image to standardise
-            imshow_map[im] = cv2.resize(imshow_map[im], dim, interpolation=cv2.INTER_AREA)
-            im_maps.append(imshow_map[im])
-
-        while len(im_maps) <= 3:
-            im_maps.append(np.zeros((height, width), dtype=np.uint8))
-
-        image_stack_1 = np.hstack((im_maps[0], im_maps[1]))
-        image_stack_2 = np.hstack((im_maps[2], im_maps[3]))
-        image_stack_tot = np.vstack((image_stack_1, image_stack_2))
-
-        cv2.namedWindow(topic_string, flags=cv2.WINDOW_GUI_NORMAL)
-        cv2.imshow(topic_string, image_stack_tot)
-        cv2.waitKey(10)
-        time.sleep(0.01)
-
-
+ #       for im in imshow_map:
+         
+#   cv2.imshow(im, imshow_map[im])
+        #cv2.waitKey(10)
+         time.sleep(0.01)
+        
+    
     # finalize eCAL API
     ecal_core.finalize()
-
 
 if __name__ == "__main__":
     main()
