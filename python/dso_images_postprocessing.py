@@ -14,13 +14,21 @@ import capnp
 capnp.add_import_hook(['../src/capnp'])
 
 import image_capnp as eCALImage
+import odometry3d_capnp as eCALOdometry3d  # Import the odometry schema
 
 # Topics list
-topics = ["S1/cama", "S1/camd", "S1/stereo2_r", "S1/stereo1_l"]
+topics = ["S1/cama", "S1/camd", "S1/stereo2_r", "S1/stereo1_l", "S1/vio_odom"]
 
 # Base directory for saving files
 base_dir = "postProcessedLog"
 os.makedirs(base_dir, exist_ok=True)
+
+# File for logging camera details
+camera_details_file = os.path.join(base_dir, "camera_calibration.txt")
+camera_details_logged = set()
+
+# File for logging odometry data
+odom_csv_file = os.path.join(base_dir, "odom.csv")
 
 # Global FFmpeg processes and timers
 ffmpeg_processes = {}
@@ -68,6 +76,17 @@ def signal_handler(sig, frame):
         stop_ffmpeg(topic)
     sys.exit(0)
 
+def log_camera_details_once(topic, intrinsic, extrinsic):
+    global camera_details_logged
+    if topic not in camera_details_logged:
+        with open(camera_details_file, "a") as f:
+            f.write(f"===========================\n")
+            f.write(f"Camera: {topic}\n")
+            f.write(f"Intrinsic: {intrinsic}\n")
+            f.write(f"Extrinsic: {extrinsic}\n")
+            f.write("===========================\n\n")
+        camera_details_logged.add(topic)
+
 def log_to_csv(topic, frame_id, timestamp):
     sanitized_topic = sanitize_topic(topic)
     csv_filename = os.path.join(base_dir, f"{sanitized_topic}.csv")
@@ -75,9 +94,24 @@ def log_to_csv(topic, frame_id, timestamp):
         writer = csv.writer(file)
         writer.writerow([frame_id, timestamp])
 
+def log_odometry_data(seq, position, orientation):
+    with open(odom_csv_file, 'a', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow([seq, position[0], position[1], position[2], orientation[0], orientation[1], orientation[2], orientation[3]])
+
 def callback(topic, msg, ts):
+    if topic == "S1/vio_odom":
+        with eCALOdometry3d.Odometry3d.from_bytes(msg) as odometryMsg:
+            log_odometry_data(
+                odometryMsg.header.seq,
+                (odometryMsg.pose.position.x, odometryMsg.pose.position.y, odometryMsg.pose.position.z),
+                (odometryMsg.pose.orientation.w, odometryMsg.pose.orientation.x, odometryMsg.pose.orientation.y, odometryMsg.pose.orientation.z)
+            )
+        return
+
     with eCALImage.Image.from_bytes(msg) as imageMsg:
         frame_id = imageMsg.header.seq
+        log_camera_details_once(topic, imageMsg.intrinsic, imageMsg.extrinsic)
 
         if imageMsg.encoding == "mono8":
             mat = np.frombuffer(imageMsg.data, dtype=np.uint8).reshape((imageMsg.height, imageMsg.width))
