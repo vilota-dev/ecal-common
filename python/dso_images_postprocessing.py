@@ -1,24 +1,21 @@
 #!/usr/bin/env python3
 
 import sys
-import time
 import numpy as np
 import subprocess
 import signal
 import csv
 import os
-import cv2  # Import OpenCV for image handling
+import cv2  
 from threading import Timer
-
-import ecal.core.core as ecal_core
-from capnp_subscriber import CapnpSubscriber
+from mcap.reader import make_reader
 
 import capnp
 capnp.add_import_hook(['../src/capnp'])
 
 import image_capnp as eCALImage
 
-# Topics to handle
+# Topics list
 topics = ["S1/cama", "S1/camd", "S1/stereo2_r", "S1/stereo1_l"]
 
 # Base directory for saving files
@@ -92,31 +89,24 @@ def callback(topic, msg, ts):
             start_ffmpeg(topic, mat.shape[1], mat.shape[0])
         ffmpeg_processes[topic].stdin.write(mat.tobytes())
         reset_timeout(topic)
-
-        # Log frame ID and timestamp to CSV
         log_to_csv(topic, frame_id, ts)
-        
+
 def main():
-    print("eCAL {} ({})\n".format(ecal_core.getversion(), ecal_core.getdate()))
+    if len(sys.argv) < 2:
+        print("Usage: script.py <MCAP file>")
+        sys.exit(1)
 
-    ecal_core.initialize(sys.argv, "video_subscriber")
-    ecal_core.set_process_state(1, 1, "I feel good")
+    mcap_file_path = sys.argv[1]
 
-    subscribers = {}
-    for topic in topics:
-        sub = CapnpSubscriber("Image", topic)
-        sub.set_callback(lambda type, tname, msg, ts, topic=topic: callback(topic, msg, ts))
-        subscribers[topic] = sub
+    with open(mcap_file_path, "rb") as f:
+        reader = make_reader(f)
+        for schema, channel, message in reader.iter_messages(topics=topics):
+            callback(channel.topic, message.data, message.publish_time)
 
     signal.signal(signal.SIGINT, signal_handler)
 
-    try:
-        while ecal_core.ok():
-            time.sleep(0.1)
-    finally:
-        for topic in topics:
-            stop_ffmpeg(topic)
-        ecal_core.finalize()
+    for topic in topics:
+        stop_ffmpeg(topic)
 
 if __name__ == "__main__":
     main()
