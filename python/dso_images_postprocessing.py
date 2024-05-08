@@ -11,7 +11,7 @@ from threading import Timer
 from mcap.reader import make_reader
 
 import capnp
-capnp.add_import_hook(['../src/capnp'])
+capnp.add_import_hook(['/home/yt/git/ecal-common/src/capnp'])
 
 import image_capnp as eCALImage
 import odometry3d_capnp as eCALOdometry3d  # Import the odometry schema
@@ -103,7 +103,7 @@ def callback(topic, msg, ts):
     if topic == "S1/vio_odom":
         with eCALOdometry3d.Odometry3d.from_bytes(msg) as odometryMsg:
             log_odometry_data(
-                odometryMsg.header.seq,
+                odometryMsg.header.stamp,
                 (odometryMsg.pose.position.x, odometryMsg.pose.position.y, odometryMsg.pose.position.z),
                 (odometryMsg.pose.orientation.w, odometryMsg.pose.orientation.x, odometryMsg.pose.orientation.y, odometryMsg.pose.orientation.z)
             )
@@ -113,17 +113,17 @@ def callback(topic, msg, ts):
         frame_id = imageMsg.header.seq
         log_camera_details_once(topic, imageMsg.intrinsic, imageMsg.extrinsic)
 
-        if imageMsg.encoding == "mono8":
-            mat = np.frombuffer(imageMsg.data, dtype=np.uint8).reshape((imageMsg.height, imageMsg.width))
-        elif imageMsg.encoding == "jpeg":
-            mat = np.frombuffer(imageMsg.data, dtype=np.uint8)
-            mat = cv2.imdecode(mat, cv2.IMREAD_COLOR)
+        # if imageMsg.encoding == "mono8":
+        #     mat = np.frombuffer(imageMsg.data, dtype=np.uint8).reshape((imageMsg.height, imageMsg.width))
+        # elif imageMsg.encoding == "jpeg":
+        #     mat = np.frombuffer(imageMsg.data, dtype=np.uint8)
+        #     mat = cv2.imdecode(mat, cv2.IMREAD_COLOR)
 
-        if topic not in ffmpeg_processes:
-            start_ffmpeg(topic, mat.shape[1], mat.shape[0])
-        ffmpeg_processes[topic].stdin.write(mat.tobytes())
-        reset_timeout(topic)
-        log_to_csv(topic, frame_id, ts)
+        # if topic not in ffmpeg_processes:
+        #     start_ffmpeg(topic, mat.shape[1], mat.shape[0])
+        # ffmpeg_processes[topic].stdin.write(mat.tobytes())
+        # reset_timeout(topic)
+        log_to_csv(topic, frame_id, imageMsg.header.stamp)
 
 def main():
     if len(sys.argv) < 2:
