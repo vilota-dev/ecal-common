@@ -1,7 +1,7 @@
 @0x8b94c342930b4a59;
 
 using Cxx = import "/capnp/c++.capnp";
-$Cxx.namespace("ecal");
+$Cxx.namespace("vkc");
 
 struct CameraControl {
     header @0 :import "header.capnp".Header;

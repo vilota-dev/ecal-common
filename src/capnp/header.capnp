@@ -1,7 +1,7 @@
 @0xc61974417b74b4cc;
 
 using Cxx = import "/capnp/c++.capnp";
-$Cxx.namespace("ecal");
+$Cxx.namespace("vkc");
 
 struct Header {
 

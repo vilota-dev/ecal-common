@@ -1,7 +1,7 @@
 @0xd081a777c9aa537c;
 
 using Cxx = import "/capnp/c++.capnp";
-$Cxx.namespace("ecal");
+$Cxx.namespace("vkc");
 
 struct So3 {
     x @0 :Float64;

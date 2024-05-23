@@ -1,7 +1,7 @@
 @0x83675942c5c5cbd1;
 
 using Cxx = import "/capnp/c++.capnp";
-$Cxx.namespace("ecal");
+$Cxx.namespace("vkc");
 
 # Tag Detection shall encode image as well for debugging purpose, and could be switched off when desired
 # This is due to the fact that detection may run at a lower frequency

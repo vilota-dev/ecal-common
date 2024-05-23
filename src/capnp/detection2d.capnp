@@ -1,7 +1,7 @@
 @0x94839fd8bdb7c208;
 
 using Cxx = import "/capnp/c++.capnp";
-$Cxx.namespace("ecal");
+$Cxx.namespace("vkc");
 
 struct Detection2d {
 

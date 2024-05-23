@@ -1,7 +1,7 @@
 @0xb582b480fc4d3622;
 
 using Cxx = import "/capnp/c++.capnp";
-$Cxx.namespace("ecal");
+$Cxx.namespace("vkc");
 
 struct Vector3f {
     x @0 :Float32;

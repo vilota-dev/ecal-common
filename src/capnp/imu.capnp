@@ -1,7 +1,7 @@
 @0xebb5b4dfd4cfc717;
 
 using Cxx = import "/capnp/c++.capnp";
-$Cxx.namespace("ecal");
+$Cxx.namespace("vkc");
 
 struct ImuInstrinsic {
     gyroNoiseStd @0:import "vector3.capnp".Vector3d;

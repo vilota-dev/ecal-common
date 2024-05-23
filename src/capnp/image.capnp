@@ -1,7 +1,7 @@
 @0xa5565e1abe1d96a9;
 
 using Cxx = import "/capnp/c++.capnp";
-$Cxx.namespace("ecal");
+$Cxx.namespace("vkc");
 
 struct MotionMeta {
     instantaneousAngularVelocity @0 :import "vector3.capnp".Vector3d; # timestamp at middle of exposure

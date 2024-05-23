@@ -1,7 +1,7 @@
 @0x85b66463488de4eb;
 
 using Cxx = import "/capnp/c++.capnp";
-$Cxx.namespace("ecal");
+$Cxx.namespace("vkc");
 
 struct Disparity {
     enum Encoding {
@@ -9,6 +9,9 @@ struct Disparity {
         disparity16 @1; # encoded as scaled disparity of scaling of 8
         depth16 @2; # encoded as uint16, in millimeter
         depth32 @3; # encoded as float32, in meter
+        distance16 @4; # encoded as uint16, in millimeter
+        distance32 @5; # encoded as float32, in meter
+        confidence8 @6; # encoded as integer confidence
     }
 
     header @0 :import "header.capnp".Header;

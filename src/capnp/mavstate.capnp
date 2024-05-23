@@ -1,7 +1,7 @@
 @0xf290bd03f63a5e98;
 
 using Cxx = import "/capnp/c++.capnp";
-$Cxx.namespace("ecal");
+$Cxx.namespace("vkc");
 
 struct MavState {
 

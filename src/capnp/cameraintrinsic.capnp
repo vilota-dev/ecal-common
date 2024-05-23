@@ -1,7 +1,7 @@
 @0xe83fc74cfb51c4d6;
 
 using Cxx = import "/capnp/c++.capnp";
-$Cxx.namespace("ecal");
+$Cxx.namespace("vkc");
 
 struct PinholeModel {
     fx @0 :Float32;

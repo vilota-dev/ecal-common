@@ -1,7 +1,7 @@
 @0x9df95ede2a032978;
 
 using Cxx = import "/capnp/c++.capnp";
-$Cxx.namespace("ecal");
+$Cxx.namespace("vkc");
 
 # https://docs.ros.org/en/noetic/api/geometry_msgs/html/msg/Twist.html
 
