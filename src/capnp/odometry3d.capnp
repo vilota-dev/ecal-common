@@ -9,8 +9,8 @@ $Cxx.namespace("vkc");
 struct VioPose {
     stamp @0 :UInt64;
     pose @1 :import "se3.capnp".Se3;
-    kf @2 :Bool;
-    group @3 :Int32;
+    kf @2 :Bool; # whether the current stamp pose is selected as kf in the vio
+    group @3 :Int32; # group 0 is reserved for main stereo subsystem, group 1 is the additional monocular subsystem. Further numbering is not used yet
 }
 
 struct VioLandmark {
@@ -63,7 +63,7 @@ struct Odometry3d {
     twist @6 :import "twist3.capnp".Twist3;
     twistCovariance @7 :List(Float32); # either 21 or 36 numbers of float
 
-    resetCounter @8 :UInt32;
+    resetCounter @8 :UInt32; # a damped counter for counting metricFailureVio turns 1 (failure)
 
     metricVisionFailureLikelihood @9 :Float32; # 0 means vision functioning, 1 means imu only
     metricInertialFailureLikelihood @10 :Float32; # 0 means imu function, 1 means imu bias estimation is bad
